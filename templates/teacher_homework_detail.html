@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-wrap justify-between items-start gap-3">
+    <div>
+      <a href="/teacher/homework" class="text-sm text-[#714B67] hover:underline">← Бүх даалгавар</a>
+      <h1 class="text-2xl font-black text-slate-800 mt-2">{{ homework.title }}</h1>
+      <p class="text-sm text-slate-500 mt-1">
+        {{ homework.grade if homework.grade else 'Бүх анги' }} · Дээд оноо {{ homework.max_score }}
+        {% if homework.due_date %} · Хугацаа {{ homework.due_date.replace('T', ' ') }}{% endif %}
+        · {% if homework.check_mode == 'queue' %}Дараалал горим{% else %}Шууд горим{% endif %}
+        · {% if homework.check_type == 'fixed' %}Тогтмол хариулт{% else %}Тест код{% endif %}
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/teacher/homework/{{ homework.id }}/edit" class="px-4 py-2 border text-[#714B67] text-sm font-semibold rounded-xl hover:bg-slate-50">Засах</a>
+      <a href="/teacher/homework/new" class="px-4 py-2 bg-[#714B67] text-white text-sm font-semibold rounded-xl hover:bg-[#5c3c54]">+ Шинэ даалгавар</a>
+    </div>
+  </div>
+
+  {% if request.query_params.get('created') %}
+    <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm">Гэрийн даалгавар амжилттай үүслээ.</div>
+  {% elif request.query_params.get('updated') %}
+    <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm">Өөрчлөлт амжилттай хадгалагдлаа.</div>
+  {% endif %}
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="bg-white p-5 rounded-2xl border shadow-sm">
+      <h2 class="font-bold text-slate-800 mb-2">Тайлбар</h2>
+      <p class="text-sm text-slate-600 whitespace-pre-line">{{ homework.description or 'Тайлбар оруулаагүй.' }}</p>
+      {% if homework.starter_code %}
+        <h3 class="font-semibold text-xs text-slate-500 mt-4 mb-2">Эх код</h3>
+        <pre class="text-xs bg-slate-900 text-slate-100 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap font-mono">{{ homework.starter_code }}</pre>
+      {% endif %}
+    </div>
+
+    <div class="bg-white p-5 rounded-2xl border shadow-sm">
+      {% if homework.check_type == 'fixed' %}
+        <h2 class="font-bold text-slate-800 mb-2">Тогтмол хариулт</h2>
+        <p class="text-sm text-slate-600">Хүлээгдэж буй хариулт:</p>
+        <pre class="mt-2 text-sm bg-slate-50 border rounded-xl p-3 font-mono">{{ homework.fixed_answer or '-' }}</pre>
+        <p class="text-xs text-slate-500 mt-2">Сурагчийн хариулт энэ утгатай тэнцэж байвал бүтэн оноо өгнө.</p>
+      {% else %}
+        <h2 class="font-bold text-slate-800 mb-2">Нэгж тестүүд ({{ tests|length }})</h2>
+        {% for t in tests %}
+          <details class="border rounded-xl p-3 mb-2 bg-slate-50">
+            <summary class="text-sm font-semibold cursor-pointer">{{ t.name }}</summary>
+            <pre class="mt-2 text-xs whitespace-pre-wrap font-mono text-slate-700">{{ t.test_code }}</pre>
+          </details>
+        {% else %}
+          <p class="text-sm text-slate-400">Тест оруулаагүй. Илгээлтүүд багшийн гараар үнэлэгдэнэ.</p>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl border shadow-sm overflow-x-auto">
+    <div class="p-5 border-b flex justify-between items-center">
+      <h2 class="font-bold text-slate-800">Сурагчдын илгээлт</h2>
+      <span class="text-xs text-slate-500">{{ submissions|length }} илгээлт</span>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-slate-100 text-left">
+          <th class="p-3 border-b">Сурагч</th>
+          <th class="p-3 border-b">Анги</th>
+          <th class="p-3 border-b">Төлөв</th>
+          <th class="p-3 border-b text-center">Оноо</th>
+          <th class="p-3 border-b">Илгээсэн</th>
+          <th class="p-3 border-b"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in students %}
+          {% set sub = sub_map.get(s.id) %}
+          <tr class="border-b hover:bg-slate-50">
+            <td class="p-3">
+              <div class="flex items-center gap-2">
+                {% if s.photo_path %}<img src="/photo/{{ s.photo_path }}" alt="" class="w-8 h-8 rounded-full object-cover border">{% endif %}
+                <span>{{ (s.surname or '') ~ ' ' ~ (s.name or '') if s.name else s.username }}</span>
+              </div>
+            </td>
+            <td class="p-3">{{ s.grade or '-' }}</td>
+            <td class="p-3 text-xs">
+              {% if not sub %}
+                <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Илгээгээгүй</span>
+              {% elif sub.status == 'done' %}
+                <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Шалгагдсан</span>
+              {% elif sub.status == 'checking' %}
+                <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Шалгаж байна</span>
+              {% elif sub.status == 'error' %}
+                <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">Алдаа</span>
+              {% else %}
+                <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">Үнэлгээ хүлээж байна</span>
+              {% endif %}
+            </td>
+            <td class="p-3 text-center font-bold text-[#714B67]">
+              {% if sub and sub.score is not none %}{{ sub.score }} / {{ sub.max_score or homework.max_score }}{% else %}—{% endif %}
+            </td>
+            <td class="p-3 text-xs text-slate-500">{{ sub.submitted_at|datetime if sub and sub.submitted_at else '—' }}</td>
+            <td class="p-3 text-right">
+              {% if sub %}
+                <a href="/teacher/homework/{{ homework.id }}/submission/{{ sub.id }}" class="text-xs font-semibold text-teal-700 hover:underline">Харах / Үнэлэх</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="p-6 text-center text-slate-400">Сурагч бүртгэгдээгүй байна.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

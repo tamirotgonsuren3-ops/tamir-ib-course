@@ -17,6 +17,9 @@
         {% if user %}
           {% if user.role == 'teacher' %}
             <a href="/teacher" class="hover:underline">Самбар</a>
+            <a href="/teacher/homework" class="hover:underline">Гэрийн даалгавар</a>
+            <a href="/teacher/attendance" class="hover:underline">Ирц</a>
+            <a href="/teacher/scoring" class="hover:underline">Оноо</a>
             <a href="/scores" class="hover:underline">Дүн</a>
           {% else %}
             <a href="/student" class="hover:underline">Самбар</a>

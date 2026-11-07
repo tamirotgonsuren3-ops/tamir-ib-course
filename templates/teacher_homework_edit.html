@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+  <div class="flex justify-between items-center">
+    <div>
+      <a href="/teacher/homework/{{ homework.id }}" class="text-sm text-[#714B67] hover:underline">← {{ homework.title }}</a>
+      <h1 class="text-2xl font-black text-slate-800 mt-1">Гэрийн даалгавар засах</h1>
+    </div>
+  </div>
+
+  {% if request.query_params.get('error') == 'title' %}
+    <div class="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-sm">Гарчиг заавал оруулна уу.</div>
+  {% elif request.query_params.get('error') == 'fixed' %}
+    <div class="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-sm">Тогтмол хариулт сонгосон бол хүлээгдэж буй хариултаа оруулна уу.</div>
+  {% endif %}
+
+  <form action="/teacher/homework/{{ homework.id }}/edit" method="POST" class="bg-white p-6 rounded-2xl shadow-sm border space-y-5">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="md:col-span-2">
+        <label class="block text-sm font-semibold mb-1">Гарчиг</label>
+        <input type="text" name="title" required value="{{ homework.title }}" class="w-full px-3 py-2 border rounded-xl text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">Дээд оноо</label>
+        <input type="number" name="max_score" min="1" max="100" value="{{ homework.max_score }}" class="w-full px-3 py-2 border rounded-xl text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">Хугацаа (заавал биш)</label>
+        <input type="datetime-local" name="due_date" value="{{ homework.due_date or '' }}" class="w-full px-3 py-2 border rounded-xl text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">Анги (заавал биш)</label>
+        <select name="grade" class="w-full px-3 py-2 border rounded-xl text-sm bg-white">
+          <option value="">Бүх анги</option>
+          {% for g in grade_options %}
+            <option value="{{ g }}" {% if homework.grade == g %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">Шалгах горим</label>
+        <select name="check_mode" class="w-full px-3 py-2 border rounded-xl text-sm bg-white">
+          <option value="recursive" {% if homework.check_mode == 'recursive' %}selected{% endif %}>Шууд шалгах (цөөн сурагч)</option>
+          <option value="queue" {% if homework.check_mode == 'queue' %}selected{% endif %}>Дараалалд хийх (олон сурагч)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">Шалгах төрөл</label>
+        <select name="check_type" id="checkType" class="w-full px-3 py-2 border rounded-xl text-sm bg-white">
+          <option value="tests" {% if homework.check_type != 'fixed' %}selected{% endif %}>Python тест кодоор шалгах</option>
+          <option value="fixed" {% if homework.check_type == 'fixed' %}selected{% endif %}>Тогтмол хариулттай харьцуулах</option>
+        </select>
+      </div>
+      <div id="fixedAnswerBox" class="hidden md:col-span-2">
+        <label class="block text-sm font-semibold mb-1">Хүлээгдэж буй хариулт</label>
+        <input type="text" name="fixed_answer" id="fixedAnswer" value="{{ homework.fixed_answer or '' }}" placeholder="Жишээ: 14" class="w-full px-3 py-2 border rounded-xl text-sm">
+        <p class="text-xs text-slate-500 mt-1">Сурагчийн оруулсан хариулт энэ утгатай тэнцэж байвал бүтэн оноо өгнө.</p>
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold mb-1">Даалгаврын тайлбар</label>
+      <textarea name="description" rows="5" class="w-full px-3 py-2 border rounded-xl text-sm">{{ homework.description or '' }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold mb-1">Эх код (заавал биш)</label>
+      <textarea name="starter_code" rows="8" class="w-full px-3 py-2 border rounded-xl text-sm font-mono">{{ homework.starter_code or '' }}</textarea>
+    </div>
+
+    <div id="testsSection" class="space-y-3">
+      <div class="flex justify-between items-center">
+        <label class="block text-sm font-semibold">Нэгж тестүүд</label>
+        <button type="button" id="addTest" class="text-xs px-3 py-1.5 rounded-lg border bg-slate-50 hover:bg-slate-100">+ Тест нэмэх</button>
+      </div>
+      <p class="text-xs text-slate-500">Тест бүр сурагчийн код дээр ажиллана. Алдаа шидэхгүй бол тест давсан гэж үзнэ.</p>
+      <div id="testRows" class="space-y-3">
+        {% for t in tests %}
+          <div class="test-row p-4 border rounded-xl bg-slate-50 space-y-2">
+            <div class="flex justify-between items-center gap-2">
+              <input type="text" name="test_name" value="{{ t.name }}" placeholder="Тестийн нэр (заавал биш)" class="flex-1 px-3 py-2 border rounded-lg text-sm">
+              <button type="button" class="remove-test text-xs px-2 py-1 rounded-lg border bg-white text-rose-600 hover:bg-rose-50">Устгах</button>
+            </div>
+            <textarea name="test_code" rows="3" class="w-full px-3 py-2 border rounded-lg text-sm font-mono" placeholder="assert add(2, 3) == 5">{{ t.test_code }}</textarea>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-3 border-t pt-4">
+      <a href="/teacher/homework/{{ homework.id }}" class="px-4 py-2 rounded-xl border text-sm font-semibold text-slate-600 hover:bg-slate-50">Болих</a>
+      <button type="submit" class="px-5 py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700">Өөрчлөлт хадгалах</button>
+    </div>
+  </form>
+</div>
+
+<template id="testRowTemplate">
+  <div class="test-row p-4 border rounded-xl bg-slate-50 space-y-2">
+    <div class="flex justify-between items-center gap-2">
+      <input type="text" name="test_name" placeholder="Тестийн нэр (заавал биш)" class="flex-1 px-3 py-2 border rounded-lg text-sm">
+      <button type="button" class="remove-test text-xs px-2 py-1 rounded-lg border bg-white text-rose-600 hover:bg-rose-50">Устгах</button>
+    </div>
+    <textarea name="test_code" rows="3" class="w-full px-3 py-2 border rounded-lg text-sm font-mono" placeholder="assert add(2, 3) == 5"></textarea>
+  </div>
+</template>
+
+<script>
+(function() {
+  var rows = document.getElementById('testRows');
+  var template = document.getElementById('testRowTemplate');
+  var checkType = document.getElementById('checkType');
+  var testsSection = document.getElementById('testsSection');
+  var fixedAnswerBox = document.getElementById('fixedAnswerBox');
+  var fixedAnswer = document.getElementById('fixedAnswer');
+
+  function applyType() {
+    var fixed = checkType.value === 'fixed';
+    testsSection.classList.toggle('hidden', fixed);
+    fixedAnswerBox.classList.toggle('hidden', !fixed);
+    fixedAnswer.required = fixed;
+  }
+
+  document.getElementById('addTest').addEventListener('click', function() {
+    rows.appendChild(template.content.cloneNode(true));
+  });
+  rows.addEventListener('click', function(event) {
+    if (event.target.classList.contains('remove-test')) {
+      var row = event.target.closest('.test-row');
+      if (row) row.remove();
+    }
+  });
+  checkType.addEventListener('change', applyType);
+  applyType();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% set status = submission.status %}
+<div class="space-y-4">
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div class="rounded-xl border bg-slate-50 p-4">
+      <div class="text-[11px] uppercase tracking-wide text-slate-500">Төлөв</div>
+      <div class="mt-1 font-bold">
+        {% if status == 'done' %}
+          <span class="text-emerald-700">Шалгагдсан</span>
+        {% elif status == 'checking' %}
+          <span class="text-amber-700">Шалгаж байна...</span>
+        {% elif status == 'error' %}
+          <span class="text-rose-700">Алдаа гарсан</span>
+        {% else %}
+          <span class="text-slate-600">Багшийн үнэлгээ хүлээж байна</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="rounded-xl border bg-slate-50 p-4">
+      <div class="text-[11px] uppercase tracking-wide text-slate-500">Оноо</div>
+      <div class="mt-1 font-bold text-[#714B67]">
+        {% if submission.score is not none %}{{ submission.score }} / {{ submission.max_score or homework.max_score }}{% else %}—{% endif %}
+      </div>
+    </div>
+    <div class="rounded-xl border bg-slate-50 p-4">
+      <div class="text-[11px] uppercase tracking-wide text-slate-500">Илгээсэн</div>
+      <div class="mt-1 font-bold text-slate-700">
+        {% if submission.submitted_at %}{{ submission.submitted_at|datetime }}{% else %}—{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if submission.explanation %}
+    <div class="rounded-xl border border-teal-100 bg-teal-50 p-4">
+      <div class="text-xs font-bold text-teal-800 mb-1">Шалгагчийн тайлбар</div>
+      <p class="text-sm text-teal-900 whitespace-pre-line">{{ submission.explanation }}</p>
+    </div>
+  {% endif %}
+
+  {% if test_results and test_results.get('load_error') %}
+    <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+      {{ test_results.get('load_error') }}
+    </div>
+  {% endif %}
+
+  {% if test_results and test_results.get('results') %}
+    <div class="rounded-xl border bg-white p-4">
+      <div class="text-xs font-bold text-slate-600 mb-2">Тестүүдийн үр дүн</div>
+      <ul class="space-y-2">
+        {% for t in test_results.get('results') %}
+          <li class="flex items-start gap-2 text-sm">
+            {% if t.passed %}
+              <span class="mt-0.5 text-emerald-600 font-bold">✓</span>
+              <span class="text-slate-700">{{ t.name }}</span>
+            {% else %}
+              <span class="mt-0.5 text-rose-600 font-bold">✕</span>
+              <span class="text-slate-700">
+                {{ t.name }}
+                {% if t.error %}<span class="block text-xs text-rose-600 mt-0.5">{{ t.error }}</span>{% endif %}
+              </span>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="rounded-xl border bg-slate-900 p-4 overflow-x-auto">
+    <div class="text-xs font-bold text-slate-300 mb-2">{% if homework.check_type == 'fixed' %}Илгээсэн хариулт{% else %}Илгээсэн код{% endif %}</div>
+    <pre class="text-xs text-slate-100 whitespace-pre-wrap font-mono">{{ submission.code }}</pre>
+  </div>
+</div>

@@ -1,9 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-sm border">
-  <div class="border-b pb-4 mb-6">
-    <span class="text-xs bg-purple-100 text-[#714B67] font-bold px-2 py-1 rounded">8 асуулт · A-D шалгуур</span>
-    <h1 class="text-2xl font-bold mt-2">{{ quiz.title }}</h1>
+  <div class="border-b pb-4 mb-6 flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <span class="text-xs bg-purple-100 text-[#714B67] font-bold px-2 py-1 rounded">8 асуулт · A-D шалгуур</span>
+      <h1 class="text-2xl font-bold mt-2">{{ quiz.title }}</h1>
+    </div>
+    {% if time_remaining is not none %}
+    <div id="timerBox" class="px-4 py-2 rounded-xl border bg-slate-50 text-center min-w-[140px]">
+      <div class="text-[10px] uppercase tracking-wide text-slate-500">Үлдсэн хугацаа</div>
+      <div id="timerDisplay" class="text-xl font-black text-[#714B67] tabular-nums">--:--</div>
+    </div>
+    {% endif %}
   </div>
 
   {% if quiz.image_path %}
@@ -12,7 +20,8 @@
     </div>
   {% endif %}
 
-  <form action="/quiz/submit/{{ quiz.id }}" method="POST" class="space-y-8">
+  <form id="quizForm" action="/quiz/submit/{{ quiz.id }}" method="POST" class="space-y-8" {% if time_remaining is not none %}novalidate{% endif %}>
+    <input type="hidden" name="timed_out" id="timedOutField" value="0">
     {% for q in quiz_data.questions %}
       <div class="p-5 bg-slate-50 rounded-xl border border-slate-200">
         <div class="flex justify-between items-center mb-2">
@@ -25,22 +34,61 @@
           <div class="space-y-2">
             {% for opt in q.options %}
               <label class="flex items-center space-x-3 text-sm p-2 rounded-lg bg-white border hover:bg-slate-100 cursor-pointer">
-                <input type="radio" name="q_{{ q.id }}" value="{{ loop.index0 }}" required class="text-[#714B67]">
+                <input type="radio" name="q_{{ q.id }}" value="{{ loop.index0 }}" {% if time_remaining is none %}required{% endif %} class="text-[#714B67] quiz-answer">
                 <span>{{ opt }}</span>
               </label>
             {% endfor %}
           </div>
         {% else %}
           <div>
-            <textarea name="q_{{ q.id }}" rows="4" required placeholder="Хариултаа тайлбарлан дэлгэрэнгүй бичнэ үү (IB шалгуурын дагуу үндэслэлтэй хариулах)..." class="w-full p-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#714B67] bg-white"></textarea>
+            <textarea name="q_{{ q.id }}" rows="4" {% if time_remaining is none %}required{% endif %} placeholder="Хариултаа тайлбарлан дэлгэрэнгүй бичнэ үү..." class="w-full p-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#714B67] bg-white quiz-answer"></textarea>
           </div>
         {% endif %}
       </div>
     {% endfor %}
 
-    <button type="submit" class="w-full py-3 bg-[#714B67] text-white font-bold rounded-xl hover:bg-[#583950] transition shadow-md">
+    <button id="submitBtn" type="submit" class="w-full py-3 bg-[#714B67] text-white font-bold rounded-xl hover:bg-[#583950] transition shadow-md">
       Шалгалтыг илгээх
     </button>
   </form>
 </div>
+
+{% if time_remaining is not none %}
+<script>
+(function() {
+  var remaining = {{ time_remaining|int }};
+  var form = document.getElementById('quizForm');
+  var display = document.getElementById('timerDisplay');
+  var timedOutField = document.getElementById('timedOutField');
+  var submitBtn = document.getElementById('submitBtn');
+  var submitted = false;
+
+  function fmt(sec) {
+    sec = Math.max(0, sec);
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  }
+  function doSubmit(isTimeout) {
+    if (submitted) return;
+    submitted = true;
+    if (isTimeout) timedOutField.value = '1';
+    form.querySelectorAll('[required]').forEach(function(el){ el.removeAttribute('required'); });
+    if (isTimeout && submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Хугацаа дууслаа — илгээж байна...'; }
+    form.submit();
+  }
+  form.addEventListener('submit', function(){ submitted = true; form.querySelectorAll('[required]').forEach(function(el){ el.removeAttribute('required'); }); });
+  display.textContent = fmt(remaining);
+  var tick = setInterval(function() {
+    remaining -= 1;
+    display.textContent = fmt(remaining);
+    if (remaining <= 60) { display.classList.add('text-rose-700'); }
+    if (remaining <= 0) {
+      clearInterval(tick);
+      doSubmit(true);
+    }
+  }, 1000);
+})();
+</script>
+{% endif %}
 {% endblock %}

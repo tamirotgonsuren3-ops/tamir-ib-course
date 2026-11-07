@@ -1,4 +1,5 @@
 import os
+import console_utils  # noqa: F401 - configures UTF-8 console output on Windows
 import sys
 import json
 import sqlite3

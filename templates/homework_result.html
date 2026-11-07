@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+  <div class="flex flex-wrap justify-between items-start gap-3">
+    <div>
+      <a href="/teacher/homework/{{ homework.id }}" class="text-sm text-[#714B67] hover:underline">← {{ homework.title }}</a>
+      <h1 class="text-2xl font-black text-slate-800 mt-2">Илгээлтийн дэлгэрэнгүй</h1>
+      <p class="text-sm text-slate-500 mt-1">
+        {{ (submission.surname or '') ~ ' ' ~ (submission.name or '') if submission.name else submission.username }}
+        · {{ submission.grade or '-' }} · {{ homework.title }}
+      </p>
+    </div>
+    <span class="text-xs px-3 py-1 rounded-full bg-slate-100 text-slate-700">Багшийн харагдац</span>
+  </div>
+
+  <div class="bg-white p-5 rounded-2xl border shadow-sm">
+    {% include "_homework_result.html" %}
+  </div>
+
+  <form action="/teacher/homework/{{ homework.id }}/submission/{{ submission.id }}/grade" method="POST" class="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
+    <h2 class="font-bold text-slate-800">Гараар үнэлэх / засах</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-semibold mb-1">Оноо (0–{{ homework.max_score }})</label>
+        <input type="number" name="score" min="0" max="{{ homework.max_score }}" value="{{ submission.score if submission.score is not none else 0 }}" required class="w-full px-3 py-2 border rounded-xl text-sm">
+      </div>
+      <div class="sm:col-span-2">
+        <label class="block text-sm font-semibold mb-1">Тайлбар</label>
+        <textarea name="explanation" rows="3" class="w-full px-3 py-2 border rounded-xl text-sm">{{ submission.explanation or '' }}</textarea>
+      </div>
+    </div>
+    <div class="flex justify-end">
+      <button type="submit" class="px-5 py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700">Оноо хадгалах</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

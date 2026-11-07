@@ -29,6 +29,29 @@
     </form>
   </div>
 
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <a href="/teacher/attendance" class="bg-white p-4 rounded-2xl border shadow-sm hover:border-indigo-300 transition">
+      <div class="text-2xl">🗓️</div>
+      <div class="font-bold text-sm mt-1">Ирц бүртгэх</div>
+      <div class="text-xs text-slate-500">Өдрөөр сурагчдын ирцийг тэмдэглэх</div>
+    </a>
+    <a href="/teacher/attendance-settings" class="bg-white p-4 rounded-2xl border shadow-sm hover:border-teal-300 transition">
+      <div class="text-2xl">⚙️</div>
+      <div class="font-bold text-sm mt-1">Ирцийн оноо</div>
+      <div class="text-xs text-slate-500">Ирсэн, хоцорсон, тасалсан оноо</div>
+    </a>
+    <a href="/teacher/discipline" class="bg-white p-4 rounded-2xl border shadow-sm hover:border-amber-300 transition">
+      <div class="text-2xl">🌟</div>
+      <div class="font-bold text-sm mt-1">Сахилга / Урамшуулал</div>
+      <div class="text-xs text-slate-500">Идэвхтэй сурагчид оноо нэмэх</div>
+    </a>
+    <a href="/teacher/scoring" class="bg-white p-4 rounded-2xl border shadow-sm hover:border-rose-300 transition">
+      <div class="text-2xl">📊</div>
+      <div class="font-bold text-sm mt-1">Нийт оноо</div>
+      <div class="text-xs text-slate-500">Даалгавар + ирц + сахилга</div>
+    </a>
+  </div>
+
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <!-- 1. Upload HTML presentation -->
     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -59,6 +82,10 @@
           {% endfor %}
         </select>
         <input type="text" name="quiz_title" placeholder="Шалгалтын гарчиг" required class="w-full px-3 py-2 border rounded-xl text-sm">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Хугацаа (минут, хоосон = хязгааргүй)</label>
+          <input type="number" name="time_limit_minutes" min="1" max="600" placeholder="жишээ: 30" class="w-full px-3 py-2 border rounded-xl text-sm">
+        </div>
         <textarea name="prompt" rows="3" placeholder="Сэдэв, түвшин, шалгах мэдлэг (жишээ: Odoo агуулахын бараа хүлээн авах ба үлдэгдэл)" required class="w-full px-3 py-2 border rounded-xl text-sm"></textarea>
         <div>
           <label class="block text-xs font-semibold text-slate-600 mb-1">Зураг хавсаргах (зөвхөн Gemini):</label>
@@ -73,7 +100,10 @@
   <div class="bg-white p-6 rounded-2xl shadow-sm border">
     <div class="flex justify-between items-center mb-4">
       <h3 class="text-md font-bold">Нийтлэгдсэн Хичээл & Шалгалтууд</h3>
-      <a href="/scores" class="text-sm font-semibold text-teal-700 hover:underline">Дүн харах →</a>
+      <div class="flex items-center gap-4">
+        <a href="/teacher/homework" class="text-sm font-semibold text-indigo-700 hover:underline">Гэрийн даалгавар →</a>
+        <a href="/scores" class="text-sm font-semibold text-teal-700 hover:underline">Дүн харах →</a>
+      </div>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <section>
@@ -97,6 +127,7 @@
               <div>
                 <h5 class="font-bold text-sm text-[#714B67]">{{ q.title }}</h5>
                 <span class="text-xs text-slate-500">Хичээл: {{ q.lesson_title }}</span>
+                {% if q.time_limit_minutes %}<span class="text-xs text-slate-500"> · {{ q.time_limit_minutes }} мин</span>{% endif %}
                 {% if q.is_active %}
                   <span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">Идэвхтэй</span>
                 {% else %}

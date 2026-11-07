@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-wrap justify-between items-center gap-3">
+    <div>
+      <h1 class="text-2xl font-black text-slate-800">Сахилга бат / Урамшуулал</h1>
+      <p class="text-sm text-slate-500">Сайн, идэвхтэй сурагчид оноо нэмэх эсвэл зөрчилд оноо хасах.</p>
+    </div>
+    <a href="/teacher/attendance?grade={{ grade }}&date={{ selected_date }}" class="text-sm font-semibold text-indigo-700 hover:underline">Ирц бүртгэх →</a>
+  </div>
+
+  {% if request.query_params.get('saved') %}
+    <div class="p-3 rounded-lg bg-emerald-50 text-emerald-900 text-sm border border-emerald-200">Сахилга / урамшууллын бүртгэл хадгалагдлаа.</div>
+  {% endif %}
+  {% if request.query_params.get('error') %}
+    <div class="p-3 rounded-lg bg-rose-50 text-rose-900 text-sm border border-rose-200">
+      {% if request.query_params.get('error') == 'student' %}
+        Сонгосон сурагч энэ ангид байхгүй байна.
+      {% else %}
+        Огноо, сурагч эсвэл оноогоо зөв оруулна уу.
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <form method="GET" action="/teacher/discipline" class="bg-white p-4 rounded-2xl border shadow-sm flex flex-wrap items-end gap-3">
+    <div>
+      <label class="block text-xs font-semibold text-slate-500 mb-1">Анги</label>
+      <select name="grade" onchange="this.form.submit()" class="px-3 py-2 border rounded-xl text-sm bg-white min-w-36">
+        {% if not grades %}
+          <option value="">Анги байхгүй</option>
+        {% endif %}
+        {% for g in grades %}
+          <option value="{{ g }}" {% if g == grade %}selected{% endif %}>{{ g }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-500 mb-1">Огноо</label>
+      <input type="date" name="date" value="{{ selected_date }}" onchange="this.form.submit()" class="px-3 py-2 border rounded-xl text-sm bg-white">
+    </div>
+    <button type="submit" class="px-4 py-2 bg-[#714B67] text-white text-sm font-semibold rounded-xl hover:bg-[#5e3e56]">Харах</button>
+  </form>
+
+  {% if grade and students %}
+    <form method="POST" action="/teacher/discipline" class="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+      <input type="hidden" name="grade" value="{{ grade }}">
+      <h2 class="font-bold text-[#714B67]">Шинэ бүртгэл нэмэх</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-semibold text-slate-700 mb-1">Сурагч</label>
+          <select name="student_id" required class="w-full px-3 py-2 border rounded-xl text-sm bg-white">
+            <option value="">-- Сурагч сонгох --</option>
+            {% for s in students %}
+              <option value="{{ s.id }}">{{ s.surname or '' }} {{ s.name or s.username }} ({{ s.username }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">Огноо</label>
+          <input type="date" name="date" value="{{ selected_date }}" required class="w-full px-3 py-2 border rounded-xl text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">Оноо</label>
+          <input type="number" name="score_delta" required min="-100" max="100" step="1" placeholder="жишээ: +2 эсвэл -3" class="w-full px-3 py-2 border rounded-xl text-sm">
+          <p class="text-xs text-slate-400 mt-1">Эерэг = нэмэх, сөрөг = хасах.</p>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-semibold text-slate-700 mb-1">Тайлбар</label>
+          <input type="text" name="note" maxlength="300" placeholder="жишээ: Хичээлд идэвхтэй оролцсон / Хоцорсон" class="w-full px-3 py-2 border rounded-xl text-sm">
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <button type="submit" class="px-5 py-2 bg-amber-600 text-white text-sm font-semibold rounded-xl hover:bg-amber-700">Бүртгэх</button>
+      </div>
+    </form>
+  {% endif %}
+
+  <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+    <div class="p-4 border-b bg-slate-50 flex items-center justify-between">
+      <h2 class="font-bold text-sm text-slate-700">Сүүлийн бүртгэлүүд</h2>
+      <span class="text-xs text-slate-500">{{ grade }} анги</span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-white text-xs text-slate-500 border-b">
+          <tr>
+            <th class="text-left px-4 py-3">Огноо</th>
+            <th class="text-left px-4 py-3">Сурагч</th>
+            <th class="text-left px-4 py-3">Тайлбар</th>
+            <th class="text-center px-4 py-3">Оноо</th>
+            <th class="text-right px-4 py-3">Үйлдэл</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          {% for r in recent %}
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3 text-slate-500">{{ r.date }}</td>
+              <td class="px-4 py-3 font-semibold text-slate-800">{{ r.surname or '' }} {{ r.name or r.username }}</td>
+              <td class="px-4 py-3 text-slate-700">
+                {{ r.note }}
+                {% if r.source == 'attendance' %}
+                  <span class="ml-1 text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Ирцээс</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-center font-bold {% if r.score_delta < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">
+                {% if r.score_delta > 0 %}+{% endif %}{{ r.score_delta }}
+              </td>
+              <td class="px-4 py-3 text-right">
+                <form method="POST" action="/teacher/discipline/{{ r.id }}/delete" onsubmit="return confirm('Энэ бүртгэлийг устгах уу?');">
+                  <input type="hidden" name="grade" value="{{ grade }}">
+                  <input type="hidden" name="date" value="{{ selected_date }}">
+                  <button type="submit" class="text-xs px-3 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100">Устгах</button>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-400">Одоогоор бүртгэл байхгүй.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-wrap justify-between items-center gap-3">
+    <div>
+      <h1 class="text-2xl font-black text-slate-800">Гэрийн даалгавар</h1>
+      <p class="text-sm text-slate-500 mt-1">Даалгавар үүсгэж, сурагчдын илгээлтийг автоматаар шалгуулна.</p>
+    </div>
+    <a href="/teacher/homework/new" class="px-4 py-2 bg-[#714B67] text-white text-sm font-semibold rounded-xl hover:bg-[#5c3c54]">+ Шинэ даалгавар</a>
+  </div>
+
+  {% if request.query_params.get('created') %}
+    <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm">Гэрийн даалгавар амжилттай үүслээ.</div>
+  {% endif %}
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% for h in homeworks %}
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-start gap-3">
+          <div>
+            <h3 class="font-bold text-slate-800">{{ h.title }}</h3>
+            <p class="text-xs text-slate-500 mt-1">
+              {{ h.grade if h.grade else 'Бүх анги' }} · Дээд оноо {{ h.max_score }}
+              {% if h.due_date %} · Хугацаа {{ h.due_date.replace('T', ' ') }}{% endif %}
+              · {% if h.check_type == 'fixed' %}Тогтмол хариулт{% else %}Тест код{% endif %}
+            </p>
+          </div>
+          <span class="shrink-0 text-[10px] px-2 py-0.5 rounded-full {% if h.check_mode == 'queue' %}bg-amber-100 text-amber-800{% else %}bg-teal-100 text-teal-800{% endif %}">
+            {% if h.check_mode == 'queue' %}Дараалал{% else %}Шууд{% endif %}
+          </span>
+        </div>
+        <p class="text-sm text-slate-600 line-clamp-2">{{ h.description or 'Тайлбар оруулаагүй.' }}</p>
+        <div class="flex items-center justify-between text-xs text-slate-500 border-t pt-3">
+          <span>Илгээлт: {{ h.submission_count }} · Шалгасан: {{ h.graded_count }}</span>
+          <a href="/teacher/homework/{{ h.id }}" class="font-semibold text-teal-700 hover:underline">Дэлгэрэнгүй →</a>
+        </div>
+      </div>
+    {% else %}
+      <div class="md:col-span-2 bg-white p-8 rounded-2xl border text-center text-sm text-slate-400">
+        Одоогоор гэрийн даалгавар үүсгээгүй байна.
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

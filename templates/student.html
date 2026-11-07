@@ -5,46 +5,132 @@
   {% if request.query_params.get('error') == 'exam_inactive' %}
     <div class="p-3 rounded-lg bg-amber-50 text-amber-900 text-sm border border-amber-200">Энэ шалгалт одоогоор идэвхгүй байна.</div>
   {% endif %}
-  {% if request.query_params.get('error') == 'exam_inactive' %}
-    <div class="p-3 rounded-lg bg-amber-50 text-amber-900 text-sm border border-amber-200">Энэ шалгалт одоогоор идэвхгүй байна.</div>
+
+  <!-- Score summary -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="bg-white p-4 rounded-2xl border shadow-sm">
+      <div class="text-xs font-semibold text-slate-500">Гэрийн даалгавар</div>
+      <div class="text-2xl font-black text-indigo-700">{{ score_summary.homework }}</div>
+    </div>
+    <div class="bg-white p-4 rounded-2xl border shadow-sm">
+      <div class="text-xs font-semibold text-slate-500">Ирцийн оноо</div>
+      <div class="text-2xl font-black text-teal-700">{{ score_summary.attendance }}</div>
+    </div>
+    <div class="bg-white p-4 rounded-2xl border shadow-sm">
+      <div class="text-xs font-semibold text-slate-500">Сахилга / Урамшуулал</div>
+      <div class="text-2xl font-black {% if score_summary.discipline < 0 %}text-rose-700{% else %}text-amber-700{% endif %}">{{ score_summary.discipline }}</div>
+    </div>
+    <div class="bg-white p-4 rounded-2xl border shadow-sm">
+      <div class="text-xs font-semibold text-slate-500">Нийт оноо</div>
+      <div class="text-2xl font-black text-slate-900">{{ score_summary.total }}</div>
+    </div>
+  </div>
+
+  {% if recent_attendance or recent_discipline %}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-white p-4 rounded-2xl border shadow-sm">
+      <h2 class="font-bold text-sm text-teal-700 mb-2">Сүүлийн ирц</h2>
+      <div class="space-y-2">
+        {% for r in recent_attendance %}
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-500">{{ r.date }}</span>
+            <span class="px-2 py-0.5 rounded-full {% if r.status == 'present' %}bg-emerald-100 text-emerald-800{% elif r.status == 'late' %}bg-amber-100 text-amber-800{% else %}bg-rose-100 text-rose-800{% endif %}">
+              {% if r.status == 'present' %}Ирсэн{% elif r.status == 'late' %}Хоцорсон{% else %}Тасалсан{% endif %}
+            </span>
+            <span class="font-bold">{{ r.score }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="bg-white p-4 rounded-2xl border shadow-sm">
+      <h2 class="font-bold text-sm text-amber-700 mb-2">Сүүлийн сахилга / урамшуулал</h2>
+      <div class="space-y-2">
+        {% for r in recent_discipline %}
+          <div class="flex items-start justify-between gap-2 text-xs">
+            <div>
+              <div class="text-slate-500">{{ r.date }}</div>
+              <div class="text-slate-700">{{ r.note }}</div>
+            </div>
+            <span class="font-bold {% if r.score_delta < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">{% if r.score_delta > 0 %}+{% endif %}{{ r.score_delta }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
   {% endif %}
 
   <!-- Lessons -->
   <div>
-    <h2 class="text-lg font-bold text-[#714B67] mb-3">ðŸ“– Ð˜Ð½Ñ‚ÐµÑ€Ð°ÐºÑ‚Ð¸Ð² Ð¥Ð¸Ñ‡ÑÑÐ»Ò¯Ò¯Ð´</h2>
+    <h2 class="text-lg font-bold text-[#714B67] mb-3">📖 Интерактив Хичээлүүд</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       {% for l in lessons %}
         <div class="bg-white p-5 rounded-2xl shadow-sm border flex justify-between items-center">
           <div>
             <h3 class="font-bold text-slate-800">{{ l.title }}</h3>
-            <span class="text-xs text-slate-400">Ð¡Ð»Ð°Ð¹Ð´ Ñ‚Ð°Ð½Ð¸Ð»Ñ†ÑƒÑƒÐ»Ð³Ð°</span>
+            <span class="text-xs text-slate-400">Слайд танилцуулга</span>
           </div>
-          <a href="/lesson/view/{{ l.id }}" target="_blank" class="px-4 py-2 bg-[#714B67] text-white text-xs font-semibold rounded-xl hover:bg-[#5c3c54]">Ð¡Ð»Ð°Ð¹Ð´ Ò®Ð·ÑÑ… â†—</a>
+          <a href="/lesson/view/{{ l.id }}" target="_blank" class="px-4 py-2 bg-[#714B67] text-white text-xs font-semibold rounded-xl hover:bg-[#5c3c54]">Слайд Үзэх ↗</a>
         </div>
       {% else %}
-        <p class="text-sm text-slate-400">ÐžÐ´Ð¾Ð¾Ð³Ð¾Ð¾Ñ€ Ñ…Ð¸Ñ‡ÑÑÐ» Ð½Ð¸Ð¹Ñ‚Ð»ÑÐ³Ð´ÑÑÐ³Ò¯Ð¹ Ð±Ð°Ð¹Ð½Ð°.</p>
+        <p class="text-sm text-slate-400">Одоогоор хичээл нийтлэгдээгүй байна.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Homework -->
+  <div class="mt-8">
+    <h2 class="text-lg font-bold text-indigo-700 mb-3">📝 Гэрийн Даалгавар</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {% for h in homeworks %}
+        <div class="bg-white p-5 rounded-2xl shadow-sm border flex justify-between items-center gap-3">
+          <div>
+            <h3 class="font-bold text-slate-800">{{ h.title }}</h3>
+            <span class="text-xs text-slate-500">
+              Дээд оноо {{ h.max_score }}{% if h.due_date %} · Хугацаа {{ h.due_date.replace('T', ' ') }}{% endif %}
+              · {% if h.check_type == 'fixed' %}Тогтмол хариулт{% else %}Тест код{% endif %}
+            </span>
+            <div class="mt-1 text-xs">
+              {% if h.sub_status == 'done' %}
+                <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Шалгагдсан · {{ h.sub_score }} / {{ h.sub_max_score or h.max_score }}</span>
+              {% elif h.sub_status == 'checking' %}
+                <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Шалгаж байна...</span>
+              {% elif h.sub_status == 'error' %}
+                <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">Алдаа гарсан</span>
+              {% elif h.sub_id %}
+                <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">Үнэлгээ хүлээж байна</span>
+              {% else %}
+                <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Илгээгээгүй</span>
+              {% endif %}
+            </div>
+          </div>
+          <a href="/student/homework/{{ h.id }}" class="shrink-0 px-4 py-2 {% if h.sub_id %}bg-emerald-600 hover:bg-emerald-700{% else %}bg-indigo-600 hover:bg-indigo-700{% endif %} text-white text-xs font-semibold rounded-xl">
+            {% if h.sub_id %}Үр дүн / Дахин илгээх{% else %}Даалгавар хийх{% endif %}
+          </a>
+        </div>
+      {% else %}
+        <p class="text-sm text-slate-400">Одоогоор гэрийн даалгавар нийтлэгдээгүй байна.</p>
       {% endfor %}
     </div>
   </div>
 
   <!-- Quizzes -->
   <div class="mt-8">
-    <h2 class="text-lg font-bold text-teal-700 mb-3">ðŸ“ Ð¨Ð°Ð»Ð³Ð°Ð»Ñ‚ÑƒÑƒÐ´ (IB Ò®Ð½ÑÐ»Ð³ÑÑÑ‚ÑÐ¹)</h2>
+    <h2 class="text-lg font-bold text-teal-700 mb-3">📝 Шалгалтууд (IB Үнэлгээтэй)</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       {% for q in quizzes %}
         <div class="bg-white p-5 rounded-2xl shadow-sm border flex justify-between items-center">
           <div>
             <h3 class="font-bold text-slate-800">{{ q.title }}</h3>
-            <span class="text-xs text-slate-500">Ð¡ÑÐ´ÑÐ²: {{ q.lesson_title }}</span>
+            <span class="text-xs text-slate-500">Сэдэв: {{ q.lesson_title }}</span>
           </div>
           {% if q.sub_id %}
-            <a href="/quiz/result/{{ q.sub_id }}" class="px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-xl hover:bg-emerald-700">Ò®Ñ€ Ð´Ò¯Ð½ & IB ÐžÐ½Ð¾Ð¾ Ñ…Ð°Ñ€Ð°Ñ…</a>
+            <a href="/quiz/result/{{ q.sub_id }}" class="px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-xl hover:bg-emerald-700">Үр дүн & IB Оноо харах</a>
           {% else %}
-            <a href="/quiz/take/{{ q.id }}" class="px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-xl hover:bg-teal-700">Ð¨Ð°Ð»Ð³Ð°Ð»Ñ‚ Ó¨Ð³Ó©Ñ… âž”</a>
+            <a href="/quiz/take/{{ q.id }}" class="px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-xl hover:bg-teal-700">Шалгалт Өгөх ➔</a>
           {% endif %}
         </div>
       {% else %}
-        <p class="text-sm text-slate-400">ÐžÐ´Ð¾Ð¾Ð³Ð¾Ð¾Ñ€ ÑˆÐ°Ð»Ð³Ð°Ð»Ñ‚ Ð½Ð¸Ð¹Ñ‚Ð»ÑÐ³Ð´ÑÑÐ³Ò¯Ð¹ Ð±Ð°Ð¹Ð½Ð°.</p>
+        <p class="text-sm text-slate-400">Одоогоор шалгалт нийтлэгдээгүй байна.</p>
       {% endfor %}
     </div>
   </div>

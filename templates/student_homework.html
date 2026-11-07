@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+  <div class="flex flex-wrap justify-between items-start gap-3">
+    <div>
+      <a href="/student" class="text-sm text-[#714B67] hover:underline">← Самбар</a>
+      <h1 class="text-2xl font-black text-slate-800 mt-2">{{ homework.title }}</h1>
+      <p class="text-sm text-slate-500 mt-1">
+        Дээд оноо {{ homework.max_score }}
+        {% if homework.due_date %} · Хугацаа {{ homework.due_date.replace('T', ' ') }}{% endif %}
+        · {% if homework.check_type == 'fixed' %}Тогтмол хариулт{% else %}{{ test_count }} тест{% endif %}
+      </p>
+    </div>
+    {% if submission %}
+      <span class="text-xs px-3 py-1 rounded-full
+        {% if submission.status == 'done' %}bg-emerald-100 text-emerald-800
+        {% elif submission.status == 'checking' %}bg-amber-100 text-amber-800
+        {% elif submission.status == 'error' %}bg-rose-100 text-rose-800
+        {% else %}bg-slate-100 text-slate-700{% endif %}">
+        {% if submission.status == 'done' %}Шалгагдсан
+        {% elif submission.status == 'checking' %}Шалгаж байна...
+        {% elif submission.status == 'error' %}Алдаа гарсан
+        {% else %}Үнэлгээ хүлээж байна{% endif %}
+      </span>
+    {% endif %}
+  </div>
+
+  {% if request.query_params.get('submitted') %}
+    <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm">Илгээлт хүлээн авлаа. Шалгалтын үр дүнг доороос харна уу.</div>
+  {% endif %}
+  {% if request.query_params.get('error') == 'empty' %}
+    <div class="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-sm">Код эсвэл хариулт хоосон байна. Дахин илгээнэ үү.</div>
+  {% endif %}
+
+  <div class="bg-white p-5 rounded-2xl border shadow-sm space-y-3">
+    <h2 class="font-bold text-slate-800">Даалгавар</h2>
+    <p class="text-sm text-slate-600 whitespace-pre-line">{{ homework.description or 'Тайлбар оруулаагүй.' }}</p>
+    {% if homework.starter_code %}
+      <h3 class="font-semibold text-xs text-slate-500 mt-4">Эх код</h3>
+      <pre class="text-xs bg-slate-900 text-slate-100 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap font-mono">{{ homework.starter_code }}</pre>
+    {% endif %}
+    {% if homework.check_type != 'fixed' and test_count == 0 %}
+      <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">Энэ даалгаварт автомат тест байхгүй тул илгээлтийг багш гараар үнэлнэ.</p>
+    {% endif %}
+  </div>
+
+  {% if submission and submission.status != 'checking' %}
+    <div class="bg-white p-5 rounded-2xl border shadow-sm">
+      <h2 class="font-bold text-slate-800 mb-4">Шалгалтын үр дүн</h2>
+      {% include "_homework_result.html" %}
+    </div>
+  {% elif submission and submission.status == 'checking' %}
+    <div class="bg-white p-5 rounded-2xl border shadow-sm text-center">
+      <p class="text-sm font-semibold text-amber-700">Таны илгээлтийг шалгаж байна...</p>
+      <p class="text-xs text-slate-500 mt-1">Хуудас автоматаар шинэчлэгдэнэ.</p>
+    </div>
+  {% endif %}
+
+  <form action="/student/homework/{{ homework.id }}/submit" method="POST" class="bg-white p-5 rounded-2xl border shadow-sm space-y-3">
+    <div class="flex justify-between items-center">
+      <h2 class="font-bold text-slate-800">
+        {% if homework.check_type == 'fixed' %}
+          {% if submission %}Хариултаа дахин илгээх{% else %}Хариулт илгээх{% endif %}
+        {% else %}
+          {% if submission %}Дахин илгээх{% else %}Код илгээх{% endif %}
+        {% endif %}
+      </h2>
+      <span class="text-xs text-slate-500">{% if homework.check_type == 'fixed' %}Хариулт{% else %}Python код{% endif %}</span>
+    </div>
+    {% if homework.check_type == 'fixed' %}
+      <input type="text" name="answer" required value="{{ submission.code if submission else '' }}" placeholder="Хариултаа бичнэ үү (жишээ: 14)" class="w-full px-3 py-2 border rounded-xl text-sm">
+    {% else %}
+      <textarea name="code" rows="14" required class="w-full px-3 py-2 border rounded-xl text-sm font-mono" placeholder="# Кодоо энд бичнэ үү">{{ submission.code if submission else (homework.starter_code or '') }}</textarea>
+    {% endif %}
+    <div class="flex justify-end">
+      <button type="submit" class="px-5 py-2 bg-[#714B67] text-white rounded-xl text-sm font-semibold hover:bg-[#5c3c54]">Илгээх</button>
+    </div>
+  </form>
+</div>
+
+{% if submission and submission.status == 'checking' %}
+<script>
+setTimeout(function() { window.location.reload(); }, 3000);
+</script>
+{% endif %}
+{% endblock %}
