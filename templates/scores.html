@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-black text-slate-800">Дүн (IB & 100 оноо)</h1>
+    <a href="/teacher" class="text-sm text-[#714B67] hover:underline">← Багшийн самбар</a>
+  </div>
+
+  <div class="bg-white p-6 rounded-2xl shadow-sm border overflow-x-auto">
+    <h2 class="text-lg font-bold text-[#714B67] mb-4">Шалгалтын дүнгийн жагсаалт</h2>
+    <p class="text-xs text-slate-500 mb-4">IB нийт: 0–8 оноо (A–D шалгуур бүр 0–2). 100 оноо = IB нийт × 12.5.</p>
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="bg-slate-100 text-left">
+          <th class="p-2 border">Анги</th>
+          <th class="p-2 border">Сурагч</th>
+          <th class="p-2 border">Код</th>
+          <th class="p-2 border">Шалгалт</th>
+          <th class="p-2 border text-center">IB (0–8)</th>
+          <th class="p-2 border text-center">100 оноо</th>
+          <th class="p-2 border">Дэлгэрэнгүй</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="border-b hover:bg-slate-50">
+          <td class="p-2 border font-medium">{{ r.grade or '-' }}</td>
+          <td class="p-2 border">
+            <div class="flex items-center gap-2">
+              {% if r.photo_path %}<img src="/photo/{{ r.photo_path }}" alt="" class="w-8 h-8 rounded-full object-cover border">{% endif %}
+              <span>{{ (r.surname or '') ~ ' ' ~ (r.name or '') if r.name else r.username }}</span>
+            </div>
+          </td>
+          <td class="p-2 border text-xs">{{ r.student_code or r.username }}</td>
+          <td class="p-2 border">{{ r.quiz_title }}</td>
+          <td class="p-2 border text-center font-bold text-[#714B67]">{{ r.total_score }} / 8</td>
+          <td class="p-2 border text-center font-bold text-teal-700">{{ r.score_100 }}</td>
+          <td class="p-2 border"><a href="/quiz/result/{{ r.id }}" class="text-xs text-teal-700 hover:underline">Үзэх</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="p-4 text-center text-slate-400">Одоогоор дүн байхгүй.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-white p-6 rounded-2xl shadow-sm border overflow-x-auto">
+    <h2 class="text-lg font-bold text-[#714B67] mb-4">Бүртгэлтэй сурагчид</h2>
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="bg-slate-100 text-left">
+          <th class="p-2 border">Зураг</th>
+          <th class="p-2 border">Анги</th>
+          <th class="p-2 border">Овог нэр</th>
+          <th class="p-2 border">Код</th>
+          <th class="p-2 border">Имэйл</th>
+          <th class="p-2 border">Хүйс</th>
+          <th class="p-2 border">Утас</th>
+          <th class="p-2 border">Instagram</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in students %}
+        <tr class="border-b">
+          <td class="p-2 border">{% if s.photo_path %}<img src="/photo/{{ s.photo_path }}" alt="" class="w-10 h-10 rounded-full object-cover">{% else %}-{% endif %}</td>
+          <td class="p-2 border">{{ s.grade or '-' }}</td>
+          <td class="p-2 border">{{ s.surname or '' }} {{ s.name or '' }}</td>
+          <td class="p-2 border">{{ s.student_code or s.username }}</td>
+          <td class="p-2 border text-xs">{{ s.email or '-' }}</td>
+          <td class="p-2 border">{{ s.gender or '-' }}</td>
+          <td class="p-2 border">{{ s.phone or '-' }}</td>
+          <td class="p-2 border text-xs">{{ s.instagram or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="p-4 text-center text-slate-400">Сурагч бүртгэгдээгүй.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

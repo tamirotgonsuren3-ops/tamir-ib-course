@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import sqlite3
 import shutil
 import uuid
@@ -15,13 +16,46 @@ app = FastAPI(title="EduPath IB & Odoo ERP Learning Platform")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_LESSONS = os.path.join(BASE_DIR, "uploads", "lessons")
 UPLOAD_IMAGES = os.path.join(BASE_DIR, "uploads", "quiz_images")
+UPLOAD_PHOTOS = os.path.join(BASE_DIR, "uploads", "photos")
 os.makedirs(UPLOAD_LESSONS, exist_ok=True)
 os.makedirs(UPLOAD_IMAGES, exist_ok=True)
+os.makedirs(UPLOAD_PHOTOS, exist_ok=True)
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
+GRADE_OPTIONS = [f"{g}{s}" for g in range(1, 13) for s in ("a", "b", "c")]
+
+
+def parse_grade(grade: str):
+    m = re.fullmatch(r"(\d{1,2})([abc])", (grade or "").strip().lower())
+    if not m:
+        return None
+    n = int(m.group(1))
+    if n < 1 or n > 12:
+        return None
+    return (n, m.group(2))
+
+
+def ib_to_100(total_score) -> float:
+    try:
+        return round(float(total_score) * 12.5, 1)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+templates.env.globals["ib_to_100"] = ib_to_100
+templates.env.globals["grade_options"] = GRADE_OPTIONS
+
 # --- DATABASE SETUP (SQLite) ---
 DB_PATH = os.path.join(BASE_DIR, "edupath.db")
+
+
+def _ensure_columns(c: sqlite3.Cursor, table: str, columns: dict[str, str]):
+    existing = {row[1] for row in c.execute(f"PRAGMA table_info({table})").fetchall()}
+    for name, col_def in columns.items():
+        if name not in existing:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")
+
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -35,9 +69,20 @@ def init_db():
         gemini_api_key TEXT,
         deepseek_api_key TEXT
     )''')
-    user_columns = {row[1] for row in c.execute("PRAGMA table_info(users)").fetchall()}
-    if "deepseek_api_key" not in user_columns:
-        c.execute("ALTER TABLE users ADD COLUMN deepseek_api_key TEXT")
+    _ensure_columns(c, "users", {
+        "deepseek_api_key": "deepseek_api_key TEXT",
+        "grade": "grade TEXT",
+        "name": "name TEXT",
+        "surname": "surname TEXT",
+        "student_code": "student_code TEXT",
+        "email": "email TEXT",
+        "gender": "gender TEXT",
+        "phone": "phone TEXT",
+        "instagram": "instagram TEXT",
+        "photo_path": "photo_path TEXT",
+    })
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_student_code ON users(student_code) WHERE student_code IS NOT NULL")
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL")
     # Хичээлүүд (lesson.html)
     c.execute('''CREATE TABLE IF NOT EXISTS lessons (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,6 +99,8 @@ def init_db():
         image_path TEXT,
         created_by INTEGER
     )''')
+    _ensure_columns(c, "quizzes", {"is_active": "is_active INTEGER DEFAULT 1"})
+    c.execute("UPDATE quizzes SET is_active = 1 WHERE is_active IS NULL")
     # Сурагчийн хариултууд ба IB үнэлгээ
     c.execute('''CREATE TABLE IF NOT EXISTS submissions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,21 +144,74 @@ def index(request: Request, user: dict = Depends(get_current_user)):
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse( request=request, name="login.html")
+    return templates.TemplateResponse(request=request, name="login.html")
 
 @app.post("/register")
-def register(
+async def register(
+    grade: str = Form(...),
+    name: str = Form(...),
+    surname: str = Form(...),
+    student_code: str = Form(...),
+    email: str = Form(...),
+    gender: str = Form(...),
+    phone: str = Form(...),
+    instagram: str = Form(""),
+    password: str = Form(...),
+    photo: UploadFile = File(...),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    grade_norm = (grade or "").strip().lower()
+    if not parse_grade(grade_norm):
+        return RedirectResponse(url="/login?error=invalid_grade", status_code=status.HTTP_302_FOUND)
+    name = name.strip()
+    surname = surname.strip()
+    student_code = student_code.strip()
+    email = email.strip().lower()
+    gender = gender.strip()
+    phone = phone.strip()
+    instagram = (instagram or "").strip()
+    if not all([name, surname, student_code, email, gender, phone, password]):
+        return RedirectResponse(url="/login?error=missing_fields", status_code=status.HTTP_302_FOUND)
+    if not photo or not photo.filename:
+        return RedirectResponse(url="/login?error=photo_required", status_code=status.HTTP_302_FOUND)
+
+    ext = os.path.splitext(photo.filename)[1].lower()
+    if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+        return RedirectResponse(url="/login?error=invalid_photo", status_code=status.HTTP_302_FOUND)
+    safe_photo = f"{uuid.uuid4().hex}{ext}"
+    photo_path = os.path.join(UPLOAD_PHOTOS, safe_photo)
+    with open(photo_path, "wb") as buf:
+        shutil.copyfileobj(photo.file, buf)
+
+    c = db.cursor()
+    try:
+        c.execute(
+            """INSERT INTO users (username, password, role, grade, name, surname, student_code, email, gender, phone, instagram, photo_path)
+               VALUES (?, ?, 'student', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (student_code, password, grade_norm, name, surname, student_code, email, gender, phone, instagram or None, safe_photo),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        try:
+            os.remove(photo_path)
+        except OSError:
+            pass
+        return RedirectResponse(url="/login?error=exists", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url="/login?registered=1", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/register/teacher")
+def register_teacher(
     username: str = Form(...),
     password: str = Form(...),
-    role: str = Form(...),
-    db: sqlite3.Connection = Depends(get_db)
+    db: sqlite3.Connection = Depends(get_db),
 ):
     c = db.cursor()
     try:
-        c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (username, password, role))
+        c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, 'teacher')", (username.strip(), password))
         db.commit()
     except sqlite3.IntegrityError:
-        raise HTTPException(status_code=400, detail="Username already exists")
+        return RedirectResponse(url="/login?error=exists", status_code=status.HTTP_302_FOUND)
     return RedirectResponse(url="/login?registered=1", status_code=status.HTTP_302_FOUND)
 
 @app.post("/login")
@@ -146,7 +246,7 @@ def teacher_dashboard(request: Request, user: dict = Depends(get_current_user), 
     lessons = c.fetchall()
     c.execute("SELECT * FROM lessons ORDER BY id DESC")
     published_lessons = c.fetchall()
-    c.execute("SELECT quizzes.*, lessons.title as lesson_title FROM quizzes JOIN lessons ON quizzes.lesson_id = lessons.id ORDER BY quizzes.id DESC")
+    c.execute("SELECT quizzes.*, lessons.title as lesson_title, COALESCE(quizzes.is_active, 1) as is_active FROM quizzes JOIN lessons ON quizzes.lesson_id = lessons.id ORDER BY quizzes.id DESC")
     quizzes = c.fetchall()
     # return templates.TemplateResponse( request=request, name="teacher.html")
     return templates.TemplateResponse(
@@ -254,14 +354,74 @@ def create_quiz_with_gemini(
 
     c = db.cursor()
     c.execute(
-        "INSERT INTO quizzes (lesson_id, title, questions_json, image_path, created_by) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO quizzes (lesson_id, title, questions_json, image_path, created_by, is_active) VALUES (?, ?, ?, ?, ?, 1)",
         (lesson_id, quiz_title, json.dumps(parsed_quiz.model_dump()), image_saved_path, user["id"])
     )
     db.commit()
     return RedirectResponse("/teacher?quiz_created=1", status_code=status.HTTP_302_FOUND)
 
-# --- STUDENT DASHBOARD & ASSESSMENT ---
 
+@app.post("/teacher/quiz/{quiz_id}/toggle")
+def toggle_quiz(
+    quiz_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    c = db.cursor()
+    c.execute("SELECT COALESCE(is_active, 1) FROM quizzes WHERE id = ?", (quiz_id,))
+    row = c.fetchone()
+    if not row:
+        raise HTTPException(status_code=404)
+    new_state = 0 if row[0] else 1
+    c.execute("UPDATE quizzes SET is_active = ? WHERE id = ?", (new_state, quiz_id))
+    db.commit()
+    return RedirectResponse("/teacher", status_code=status.HTTP_302_FOUND)
+
+
+@app.get("/scores", response_class=HTMLResponse)
+def scores_page(request: Request, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    if not user or user["role"] != "teacher":
+        return RedirectResponse("/login")
+    c = db.cursor()
+    c.execute(
+        """
+        SELECT s.id, s.total_score, s.evaluation_json, s.responses_json,
+               q.title as quiz_title, q.id as quiz_id,
+               u.id as student_id, u.username, u.name, u.surname, u.grade, u.student_code, u.email, u.photo_path
+        FROM submissions s
+        JOIN quizzes q ON s.quiz_id = q.id
+        JOIN users u ON s.student_id = u.id
+        WHERE u.role = 'student'
+        ORDER BY u.grade, u.surname, u.name, s.id DESC
+        """
+    )
+    rows = []
+    for r in c.fetchall():
+        d = dict(r)
+        try:
+            d["evaluation"] = json.loads(d["evaluation_json"]) if d["evaluation_json"] else {}
+        except Exception:
+            d["evaluation"] = {}
+        d["score_100"] = ib_to_100(d["total_score"])
+        rows.append(d)
+    c.execute(
+        """
+        SELECT id, username, name, surname, grade, student_code, email, gender, phone, instagram, photo_path
+        FROM users WHERE role = 'student'
+        ORDER BY grade, surname, name
+        """
+    )
+    students = [dict(r) for r in c.fetchall()]
+    return templates.TemplateResponse(
+        request=request,
+        name="scores.html",
+        context={"user": user, "rows": rows, "students": students},
+    )
+
+
+# --- STUDENT DASHBOARD & ASSESSMENT ---
 @app.get("/student", response_class=HTMLResponse)
 def student_dashboard(request: Request, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
     if not user or user["role"] != "student":
@@ -274,12 +434,13 @@ def student_dashboard(request: Request, user: dict = Depends(get_current_user), 
         (SELECT id FROM submissions WHERE submissions.quiz_id = quizzes.id AND submissions.student_id = ?) as sub_id
         FROM quizzes
         JOIN lessons ON quizzes.lesson_id = lessons.id
+        WHERE COALESCE(quizzes.is_active, 1) = 1
+        ORDER BY quizzes.id DESC
     ''', (user["id"],))
     quizzes = c.fetchall()
-    # return templates.TemplateResponse(request=request, name="student.html")
     return templates.TemplateResponse(
-        request=request, 
-        name="student.html", 
+        request=request,
+        name="student.html",
         context={
             "user": user,
             "lessons": lessons,
@@ -302,6 +463,11 @@ def view_lesson(lesson_id: int, db: sqlite3.Connection = Depends(get_db)):
 def get_quiz_image(filename: str):
     return FileResponse(os.path.join(UPLOAD_IMAGES, filename))
 
+
+@app.get("/photo/{filename}")
+def get_student_photo(filename: str):
+    return FileResponse(os.path.join(UPLOAD_PHOTOS, os.path.basename(filename)))
+
 @app.get("/quiz/take/{quiz_id}", response_class=HTMLResponse)
 def take_quiz_page(quiz_id: int, request: Request, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
     if not user or user["role"] != "student":
@@ -311,11 +477,12 @@ def take_quiz_page(quiz_id: int, request: Request, user: dict = Depends(get_curr
     quiz = c.fetchone()
     if not quiz:
         raise HTTPException(status_code=404)
+    if not quiz["is_active"]:
+        return RedirectResponse("/student?error=exam_inactive", status_code=status.HTTP_302_FOUND)
     quiz_data = json.loads(quiz["questions_json"])
-    # return templates.TemplateResponse(request=request, name="take_quiz.html")
     return templates.TemplateResponse(
-        request=request, 
-        name="take_quiz.html", 
+        request=request,
+        name="take_quiz.html",
         context={
             "user": user,
             "quiz": quiz,
@@ -339,6 +506,8 @@ async def submit_quiz(
     quiz_row = c.fetchone()
     if not quiz_row:
         raise HTTPException(status_code=404, detail="Quiz not found")
+    if not quiz_row["is_active"]:
+        raise HTTPException(status_code=403, detail="Exam is not active")
 
     form_data = await request.form()
     quiz_data = json.loads(quiz_row["questions_json"])

@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Нягтлан Бодох Бүртгэл, Татвар & Цалин - 10-р анги</title>
+  <style>
+    :root {
+      --odoo-purple: #714B67;
+      --odoo-teal: #00A09D;
+      --odoo-dark: #1E293B;
+      --odoo-light: #F8FAFC;
+      --debit-color: #0284C7;
+      --credit-color: #D97706;
+      --tax-red: #DC2626;
+      --tax-green: #16A34A;
+      --border: #E2E8F0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    }
+
+    body {
+      background-color: #0F172A;
+      color: #334155;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    /* Floating Toolbar */
+    .toolbar {
+      position: fixed;
+      top: 15px;
+      right: 20px;
+      z-index: 1000;
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      background: var(--odoo-purple);
+      color: white;
+      border: none;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover { background: #875A7B; transform: translateY(-2px); }
+    .btn-pdf { background: #E11D48; }
+    .btn-pdf:hover { background: #BE123C; }
+
+    /* Presentation Frame */
+    .slide-wrapper {
+      width: 100%;
+      max-width: 1120px;
+      aspect-ratio: 16 / 9;
+      position: relative;
+    }
+
+    .slide {
+      width: 100%;
+      height: 100%;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+      padding: 36px 46px;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .slide.active {
+      display: flex;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.99); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .slide-header {
+      border-bottom: 2px solid #F1F5F9;
+      padding-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .slide-header h2 {
+      font-size: 25px;
+      color: var(--odoo-dark);
+      font-weight: 700;
+    }
+
+    .tag {
+      background: #EDE9FE;
+      color: var(--odoo-purple);
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin-top: 14px;
+    }
+
+    .slide-footer {
+      border-top: 1px solid #F1F5F9;
+      padding-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #94A3B8;
+    }
+
+    /* Grid Layouts */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+    /* Cards */
+    .card {
+      background: var(--odoo-light);
+      border-radius: 12px;
+      padding: 16px 20px;
+      border: 1px solid var(--border);
+    }
+
+    .card h3 {
+      font-size: 16px;
+      margin-bottom: 6px;
+      color: var(--odoo-purple);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card p, .card li {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #475569;
+    }
+
+    .card ul { padding-left: 18px; margin-top: 4px; }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: var(--odoo-purple);
+      color: white;
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) { background: #F8FAFC; }
+
+    /* Special Highlights */
+    .badge-debit {
+      background: #E0F2FE;
+      color: var(--debit-color);
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .badge-credit {
+      background: #FEF3C7;
+      color: var(--credit-color);
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .highlight-box {
+      border-left: 4px solid var(--odoo-teal);
+      background: #F0FDFA;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin-top: 10px;
+    }
+
+    /* Title Slide */
+    .title-slide {
+      text-align: center;
+      background: linear-gradient(135deg, #714B67 0%, #1E293B 100%);
+      color: white;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .title-slide h1 { font-size: 38px; margin-bottom: 12px; }
+    .title-slide p { font-size: 15px; opacity: 0.9; max-width: 800px; margin-bottom: 24px; line-height: 1.5; }
+
+    .controls {
+      margin-top: 15px;
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      color: white;
+      font-size: 14px;
+    }
+
+    /* PDF Print Rule */
+    @media print {
+      body { background: transparent !important; }
+      .toolbar, .controls { display: none !important; }
+      .slide-wrapper { max-width: 100% !important; width: 100% !important; }
+      .slide {
+        display: flex !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        page-break-after: always !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        padding: 30px 40px !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <button class="btn btn-pdf" onclick="window.print()">📄 PDF болгож хадгалах (Ctrl+P)</button>
+    <button class="btn" onclick="toggleFullScreen()">⛶ Дэлгэц дүүргэх</button>
+  </div>
+
+  <div class="slide-wrapper">
+
+    <!-- SLIDE 1: Title -->
+    <div class="slide title-slide active">
+      <span class="tag" style="background: rgba(255,255,255,0.2); color: #fff; margin-bottom: 15px;">Санхүүгийн Суурь Боловсрол</span>
+      <h1>Нягтлан Бодох Бүртгэлийн Үндэс</h1>
+      <p>Дебит ба Кредит, Журналын бичилт, Төрд төлөх татварууд (НӨАТ, ААННОАТ) болон Цалин, Нийгмийн даатгалын шимтгэлийн бодит тооцоолол</p>
+      <div style="background: rgba(0,0,0,0.3); padding: 10px 24px; border-radius: 30px; font-size: 13px;">
+        ⚖️ Алтан дүрэм: "Орсон мөнгө бүхэн хаа нэгтээгээс гарсан эх үүсвэртэй байдаг"
+      </div>
+    </div>
+
+    <!-- SLIDE 2: Accounting Equation & Debit/Credit -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>1. Нягтлан бодохын "Алтан Дүрэм" & Дебит, Кредит</h2>
+        <span class="tag">Суурь Онол</span>
+      </div>
+      <div class="content">
+        <div class="card" style="text-align: center; background: #EEF2FF; margin-bottom: 18px; padding: 15px;">
+          <h3 style="justify-content: center; font-size: 20px; color: #4338CA;">
+            АКТИВ (Хөрөнгө) = ПАССИВ (Өр төлбөр) + ЭЗДИЙН ӨМЧ (Өөрийн хөрөнгө)
+          </h3>
+          <p style="font-size: 13px; color: #475569; margin-top: 4px;">Компанид байгаа бүх хөрөнгө нь 1) Хүнээс зээлсэн өр, эсвэл 2) Эзний өөрийн мөнгө хоёрын аль нэгээр бий болдог.</p>
+        </div>
+        <div class="grid-2">
+          <div class="card" style="border-top: 4px solid var(--debit-color);">
+            <h3><span class="badge-debit">ДЕБИТ (Dr)</span> "ХААШАА ОРСОН БЭ?"</h3>
+            <ul>
+              <li>Компанид мөнгө, бараа <strong>НЭМЭГДЭХЭД</strong> дебитлэнэ.</li>
+              <li>Компанийн гаргаж буй ЗАРДАЛ нэмэгдэхэд дебитлэнэ.</li>
+              <li><strong>Энгийнээр:</strong> "Би юутай болсон бэ?" ➔ Бараа, Бэлэн мөнгө орж ирэв.</li>
+            </ul>
+          </div>
+          <div class="card" style="border-top: 4px solid var(--credit-color);">
+            <h3><span class="badge-credit">КРЕДИТ (Cr)</span> "ХААНААС ГАРСАН БЭ?"</h3>
+            <ul>
+              <li>Тэр хөрөнгийг авах мөнгө <strong>ХААНААС ГАРСНЫГ</strong> заана.</li>
+              <li>Өр төлбөр эсвэл Борлуулалтын ОРЛОГО нэмэгдэхэд кредитлэнэ.</li>
+              <li><strong>Энгийнээр:</strong> "Эх үүсвэр нь юу байв?" ➔ Данснаас гарсан, өр тавьсан.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Нягтлан бодох бүртгэл & Татвар</span>
+        <span>Хуудас 2 / 9</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: Journal Entries in Practice -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>2. Журнал бичилт гэж юу вэ? (Жишээнүүд)</h2>
+        <span class="tag">Дансны бичилт</span>
+      </div>
+      <div class="content">
+        <p style="font-size: 13px; color: #64748B; margin-bottom: 12px;">Журнал гэдэг нь бизнест болсон үйл явдал бүрийг хоёр талтай (Тэнцвэртэй) тэмдэглэх тэмдэглэл юм:</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Бодит амьдрал дээрх үйл явдал</th>
+              <th>Дебит (Dr) - Орсон тал</th>
+              <th>Кредит (Cr) - Гарсан тал</th>
+              <th>Тайлбар</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1. Эзэн компанидаа 10 сая ₮ хийв</strong></td>
+              <td><span class="badge-debit">Банкны данс</span> +10,000,000₮</td>
+              <td><span class="badge-credit">Эздийн өмч</span> +10,000,000₮</td>
+              <td>Банкинд мөнгө орж, өмч өсөв</td>
+            </tr>
+            <tr>
+              <td><strong>2. Гурилын цех 2 сая ₮-өөр буудай бэлнээр авав</strong></td>
+              <td><span class="badge-debit">Түүхий эдийн агуулах</span> +2,000,000₮</td>
+              <td><span class="badge-credit">Банкны данс</span> -2,000,000₮</td>
+              <td>Бараа орж ирээд, данснаас мөнгө гарсан</td>
+            </tr>
+            <tr>
+              <td><strong>3. Дэлгүүрт 500,000 ₮-ийн талх зээлээр зарав</strong></td>
+              <td><span class="badge-debit">Дансны Авлага</span> +500,000₮</td>
+              <td><span class="badge-credit">Борлуулалтын орлого</span> +500,000₮</td>
+              <td>Мөнгө нь ороогүй ч "Авлага" нэмэгдэж орлого бичигдэнэ</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="highlight-box">
+          <p style="font-size: 13px;">💡 <strong>Odoo-ийн гайхамшиг:</strong> Та Odoo дээр борлуулалт эсвэл худалдан авалт хийх товч дарахад систем цаанаа энэ Дебит/Кредит бичилтийг 100% автоматаар хийчихдэг!</p>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Нягтлан бодох бүртгэл & Татвар</span>
+        <span>Хуудас 3 / 9</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: Taxes Overview (Government Liabilities) -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>3. Төрд төлөх өглөг (Бизнесийн заавал төлөх татварууд)</h2>
+        <span class="tag">Татвар</span>
+      </div>
+      <div class="content">
+        <div class="grid-3">
+          <div class="card" style="border-top: 4px solid var(--tax-red);">
+            <h3>🧾 НӨАТ (10%)</h3>
+            <p><strong>Нэмэгдсэн Өртгийн Албан Татвар:</strong></p>
+            <ul>
+              <li>Энэ бол компанийн мөнгө <strong>БИШ</strong>, хэрэглэгчээс цуглуулж Төрд дамжуулан өгдөг мөнгө.</li>
+              <li>Бараа зарахдаа +10% нэмж авна (Гаралтын НӨАТ).</li>
+              <li>Бараа авахдаа төлсөн 10%-иа хасна (Оролтын НӨАТ).</li>
+            </ul>
+          </div>
+          <div class="card" style="border-top: 4px solid #F59E0B;">
+            <h3>🏢 ААННОАТ (Ашгийн татвар)</h3>
+            <p><strong>Аж ахуйн нэгжийн орлогын татвар:</strong></p>
+            <ul>
+              <li>Жилийн борлуулалт 300 сая төгрөгөөс доош бол хялбаршуулсан горимоор <strong>1%</strong> төлж болно.</li>
+              <li>Эсвэл: (Нийт Орлого - Бүх Зардал) = <strong>Цэвэр Ашиг × 10%</strong>-ийг жилд нэг удаа Төрд тушаана.</li>
+            </ul>
+          </div>
+          <div class="card" style="border-top: 4px solid var(--tax-green);">
+            <h3>👥 Цалингийн Татварууд</h3>
+            <p><strong>Хүн цалинжуулахад үүсэх өглөг:</strong></p>
+            <ul>
+              <li><strong>НДШ:</strong> Нийгмийн даатгалын шимтгэл (Тэтгэвэр, тэтгэмж, эмнэлэг).</li>
+              <li><strong>ЭМД:</strong> Эрүүл мэндийн даатгал (НДШ дотор хамт явна).</li>
+              <li><strong>ХХОАТ (10%):</strong> Хувь хүний орлогын албан татвар.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Нягтлан бодох бүртгэл & Татвар</span>
+        <span>Хуудас 4 / 9</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: Payroll & Social Insurance Deep Dive -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>4. Хүн цалинжуулах: Цалин, НДШ, ЭМД яаж бодогддог вэ?</h2>
+        <span class="tag">Цалин бодолт</span>
+      </div>
+      <div class="content">
+        <p style="font-size: 13px; color: #475569; margin-bottom: 10px;">
+          Хэрэв танай компани ажилтандаа <strong>1,500,000₮</strong> үндсэн цалин (Gross Salary) өгөхөөр тохиролцвол:
+        </p>
+        <div class="grid-2">
+          <div class="card" style="background: #FFF7ED; border-color: #FED7AA;">
+            <h3 style="color: #C2410C;">1. Ажилтнаас суутгах (Гарт очих мөнгө)</h3>
+            <ul>
+              <li><strong>Үндсэн цалин:</strong> 1,500,000₮</li>
+              <li><strong>НДШ суутгал (11.5%):</strong> -172,500₮
+                <br><small style="color: #64748B;">(Үүнд Эрүүл мэндийн даатгал 2% багтсан)</small>
+              </li>
+              <li><strong>Татвар ногдох орлого:</strong> 1,327,500₮</li>
+              <li><strong>ХХОАТ (10%):</strong> -132,750₮</li>
+              <li style="margin-top: 6px; font-weight: bold; color: #15803D; font-size: 14px;">
+                ➔ Ажилтны ДАНСАНД ОРОХ ЦАЛИН: 1,194,750₮
+              </li>
+            </ul>
+          </div>
+          <div class="card" style="background: #F0FDF4; border-color: #BBF7D0;">
+            <h3 style="color: #15803D;">2. Компаниас нэмж төлөх (Ажил олгогч)</h3>
+            <ul>
+              <li>Компани ажилтны цалингаас гадна өөрийн зардлаас Төрд <strong>НДШ (12.5%)</strong> нэмж төлдөг!</li>
+              <li><strong>Ажил олгогчийн НДШ:</strong> +187,500₮</li>
+              <li style="margin-top: 14px; font-weight: bold; color: #B91C1C; font-size: 14px;">
+                ➔ Компаниас энэ хүнд гаргах БҮХ ЗАРДАЛ:<br>
+                1,500,000₮ + 187,500₮ = <strong>1,687,500₮</strong>
+              </li>
+            </ul>
+            <p style="font-size: 12px; color: #64748B; margin-top: 8px;">Компани сар бүрийн 5-ны дотор энэ бүх шимтгэл, татварыг Төрийн сан руу шилжүүлж өглөгөө тэгшитгэдэг.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Нягтлан бодох бүртгэл & Татвар</span>
+        <span>Хуудас 5 / 9</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: Bakery Case Study (VAT & Profit Tax) -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>5. Бодит Кейс: 3-р баг (Талхны бизнес) ямар татвар төлөх вэ?</h2>
+        <span class="tag">Талхны жишээ</span>
+      </div>
+      <div class="content">
+        <div class="grid-2">
+          <div class="card">
+            <h3>🥖 Талхны НӨАТ хэрхэн бодогдох вэ?</h3>
+            <p style="font-size: 13px; line-height: 1.6;">
+              <strong>1. Гурил худалдан авах (Оролтын НӨАТ):</strong><br>
+              2-р багаас 1,000,000₮-ийн гурил авахдаа +100,000₮ (10% НӨАТ) нийт 1,100,000₮ төлсөн.<br><br>
+              <strong>2. Талх хийж дэлгүүрүүдэд зарах (Гаралтын НӨАТ):</strong><br>
+              Хийсэн талхаа 2,000,000₮-өөр зарахдаа дэлгүүрээс +200,000₮ (10% НӨАТ) нийт 2,200,000₮ цуглуулж авсан.<br><br>
+              <strong style="color: var(--tax-red);">➔ Төрд төлөх НӨАТ-ын өглөг:</strong><br>
+              200,000₮ (Цуглуулсан) - 100,000₮ (Төлсөн) = <strong>100,000₮</strong>-ийг л Төрд өгнө.
+            </p>
+          </div>
+          <div class="card">
+            <h3>📈 Талхны ашиг & ААННОАТ (Ашгийн татвар)</h3>
+            <table>
+              <tr>
+                <td>Борлуулалтын орлого (НӨАТ-гүй)</td>
+                <td><strong>+ 2,000,000₮</strong></td>
+              </tr>
+              <tr>
+                <td>Гурилын түүхий эдийн зардал</td>
+                <td>- 1,000,000₮</td>
+              </tr>
+              <tr>
+                <td>Талхчны цалингийн нийт зардал</td>
+                <td>- 500,000₮</td>
+              </tr>
+              <tr>
+                <td>Хүргэлтийн машин түрээс/тээвэр</td>
+                <td>- 200,000₮</td>
+              </tr>
+              <tr style="background: #FEF3C7; font-weight: bold;">
+                <td>Татварын өмнөх ЦЭВЭР АШИГ</td>
+                <td>= 300,000₮</td>
+              </tr>
+              <tr style="color: red;">
+                <td>Ашгийн татвар (10%) Төрд өгөх</td>
+                <td><strong>- 30,000₮</strong></td>
+              </tr>
+              <tr style="background: #DCFCE7; font-weight: bold; color: green;">
+                <td>КОМПАНИД ҮЛДЭХ ЦЭВЭР АШИГ</td>
+                <td>= 270,000₮</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Нягтлан бодох бүртгэл & Татвар</span>
+        <span>Хуудас 6 / 9</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: Taxes for All 5 Teams -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>6. Манай 5 Баг ямар ямар татварын өглөгтэй болох вэ?</h2>
+        <span class="tag">Багуудын татвар</span>
+      </div>
+      <div class="content">
+        <table>
+          <thead>
+            <tr>
+              <th>Баг & Бизнесийн төрөл</th>
+              <th>НӨАТ-ын үүрэг</th>
+              <th>Цалин, НДШ-ийн онцлог</th>
+              <th>Төрд тайлагнах нь</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1. Ачаа тээвэр</strong> (Fleet)</td>
+              <td>Тээврийн үйлчилгээний хөлсөндөө 10% НӨАТ тооцож нэхэмжилнэ</td>
+              <td>Жолооч нарын цалин, эрсдэлийн өндөр түвшний НДШ</td>
+              <td>Түлшний зардлын НӨАТ-аа хасуулж тооцно</td>
+            </tr>
+            <tr>
+              <td><strong>2. Улаанбуудай & Гурил</strong></td>
+              <td>Гурил борлуулалтын 10% НӨАТ нэхэмжилнэ</td>
+              <td>Тариаланч, тээрмийн ажилчдын цалингийн НДШ</td>
+              <td>Буудайн түүхий эд, үрийн зардлаа хасаж ашгаа бодно</td>
+            </tr>
+            <tr>
+              <td><strong>3. Талхны үйлдвэр</strong></td>
+              <td>Гурилын НӨАТ-аа хасаж, талхны НӨАТ-ын зөрүүг төлнө</td>
+              <td>Талхчин, нарийн боовчны цалин, НДШ</td>
+              <td>Үйлдвэрлэлийн бүтээгдэхүүний өртөг (BOM) гаргана</td>
+            </tr>
+            <tr>
+              <td><strong>4. Жижиглэн дэлгүүр</strong></td>
+              <td>Иргэдэд талх зарахдаа кассаас <strong>НӨАТ-ын И-Баримт</strong> хэвлэнэ</td>
+              <td>Худалдагч, кассчны цалин, НДШ</td>
+              <td>Сар бүр И-Баримтын борлуулалтаа Татварт илгээнэ</td>
+            </tr>
+            <tr>
+              <td><strong>5. Машин түрээс</strong></td>
+              <td>Сарын түрээсийн төлбөрөөсөө 10% НӨАТ тооцож авна</td>
+              <td>Засварчин, диспетчерийн цалин, НДШ</td>
+              <td>Машины элэгдлийн зардлаа ашгаас хасаж тайлагнана</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="slide-footer">
+        <span>Нягтлан бодох бүртгэл & Татвар</span>
+        <span>Хуудас 7 / 9</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: Odoo Accounting & Tax Automation -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>7. Odoo дээр Татвар & Журналыг хэрхэн удирдах вэ?</h2>
+        <span class="tag">Odoo заавар</span>
+      </div>
+      <div class="content">
+        <div class="grid-3">
+          <div class="card">
+            <h3>⚙️ 1. Татварын тохиргоо</h3>
+            <p><strong>Accounting ➜ Configuration ➜ Taxes:</strong></p>
+            <ul>
+              <li>"НӨАТ 10% (Sales)" - Борлуулалтад</li>
+              <li>"НӨАТ 10% (Purchase)" - Худалдан авалтад</li>
+              <li>Бараа бүртгэхдээ энэ татварыг сонгочихвол Invoice дээр өөрөө тооцогдоно.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>📑 2. Журнал харах</h3>
+            <p><strong>Accounting ➜ Accounting ➜ Journal Entries:</strong></p>
+            <ul>
+              <li>Талх зарах үед Odoo ямар Дебит/Кредит хийснийг эндээс нүдээрээ харж шалгана.</li>
+              <li>Дебит Авлага = Кредит Орлого + Кредит НӨАТ тэнцэж байгааг нягтална.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>📊 3. Ашиг, Алдагдлын тайлан</h3>
+            <p><strong>Reporting ➜ Profit and Loss:</strong></p>
+            <ul>
+              <li>Татвар, НДШ-ээ төлсний дараа танай компанид хэдэн төгрөгийн <strong>ЦЭВЭР АШИГ</strong> үлдсэнийг 1 товшилтоор харна.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Нягтлан бодох бүртгэл & Татвар</span>
+        <span>Хуудас 8 / 9</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 9: Class Simulation Rule & Challenge -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>8. Ангийн тоглоомын төгсгөлийн дүрэм: "Татварын шалгалт"</h2>
+        <span class="tag">Тэмцээн</span>
+      </div>
+      <div class="content" style="text-align: center;">
+        <div style="font-size: 42px; margin-bottom: 10px;">🏛️ ➔ 🏢</div>
+        <h3 style="font-size: 22px; color: var(--odoo-purple); margin-bottom: 12px;">
+          Багш бол "Татварын ерөнхий газар" & "Нийгмийн даатгалын байцаагч"!
+        </h3>
+        <p style="font-size: 14px; max-width: 750px; margin: 0 auto 20px; color: #475569;">
+          Бизнесийн тоглоомын төгсгөлд баг бүр зөвхөн ашгаа тооцоод зогсохгүй Төрд өгөх ёстой өглөгөө (НӨАТ, ААННОАТ, НДШ) яг таг тушаасан эсэхээ шалгуулна.
+        </p>
+        <div class="grid-3" style="text-align: left;">
+          <div class="card" style="background: #F1F5F9;">
+            <strong style="color: var(--odoo-dark);">1. Цалингийн НДШ шалгалт:</strong>
+            <p style="font-size: 12px; margin-top: 4px;">Багийнхаа ажилтанд цалин өгөхдөө 11.5% болон 12.5% шимтгэлээ үнэн зөв салгаж бүртгэсэн үү?</p>
+          </div>
+          <div class="card" style="background: #F1F5F9;">
+            <strong style="color: var(--odoo-dark);">2. НӨАТ-ын зөрүү шалгалт:</strong>
+            <p style="font-size: 12px; margin-top: 4px;">Бусдаас авсан 10% НӨАТ-аа төлсөн НӨАТ-тайгаа зөв тулгаж Төрийн данс руу шилжүүлсэн үү?</p>
+          </div>
+          <div class="card" style="background: #F1F5F9;">
+            <strong style="color: var(--odoo-dark);">3. Хамгийн ёс зүйтэй бизнес:</strong>
+            <p style="font-size: 12px; margin-top: 4px;">Татвараа нуулгүй үнэнчээр төлж, өргүй, хамгийн өндөр цэвэр ашигтай ажилласан БАГ түрүүлнэ!</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Нягтлан бодох бүртгэл & Татвар</span>
+        <span>Хуудас 9 / 9</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="prevSlide()">◀ Өмнөх</button>
+    <span id="slideIndicator">1 / 9</span>
+    <button class="btn" onclick="nextSlide()">Дараах ▶</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const indicator = document.getElementById('slideIndicator');
+
+    function showSlide(index) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (index + slides.length) % slides.length;
+      slides[currentSlide].classList.add('active');
+      indicator.textContent = `${currentSlide + 1} / ${slides.length}`;
+    }
+
+    function nextSlide() { showSlide(currentSlide + 1); }
+    function prevSlide() { showSlide(currentSlide - 1); }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+      if (e.key === 'ArrowLeft') prevSlide();
+    });
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+  </script>
+</body>
+</html>

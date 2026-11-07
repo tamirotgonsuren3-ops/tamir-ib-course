@@ -15,7 +15,13 @@
       </a>
       <div class="flex items-center space-x-4 text-sm">
         {% if user %}
-          <span class="bg-white/20 px-3 py-1 rounded-lg">👤 {{ user.username }} ({{ user.role }})</span>
+          {% if user.role == 'teacher' %}
+            <a href="/teacher" class="hover:underline">Самбар</a>
+            <a href="/scores" class="hover:underline">Дүн</a>
+          {% else %}
+            <a href="/student" class="hover:underline">Самбар</a>
+          {% endif %}
+          <span class="bg-white/20 px-3 py-1 rounded-lg">👤 {{ user.name or user.username }} ({{ user.role }})</span>
           <a href="/logout" class="bg-rose-500 hover:bg-rose-600 px-3 py-1 rounded-lg transition">Гарах</a>
         {% endif %}
       </div>

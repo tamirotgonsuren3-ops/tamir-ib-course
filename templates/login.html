@@ -1,31 +1,82 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="max-w-md mx-auto mt-12 bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
-  <h2 class="text-2xl font-bold text-center text-[#714B67] mb-6">EduPath Системд Нэвтрэх</h2>
-  
-  <form action="/login" method="POST" class="space-y-4">
-    <div>
-      <label class="block text-sm font-semibold mb-1">Хэрэглэгчийн нэр</label>
-      <input type="text" name="username" required class="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-[#714B67] outline-none">
-    </div>
-    <div>
-      <label class="block text-sm font-semibold mb-1">Нууц үг</label>
-      <input type="password" name="password" required class="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-[#714B67] outline-none">
-    </div>
-    <button type="submit" class="w-full py-2.5 bg-[#714B67] text-white font-semibold rounded-xl hover:bg-[#5b3c53] transition">Нэвтрэх</button>
-  </form>
+<div class="max-w-5xl mx-auto mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+  <div class="bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
+    <h2 class="text-2xl font-bold text-center text-[#714B67] mb-6">Нэвтрэх</h2>
+    {% if request.query_params.get('error') == '1' %}
+      <div class="mb-4 p-3 rounded-lg bg-rose-50 text-rose-800 text-sm">Нэвтрэх нэр эсвэл нууц үг буруу байна.</div>
+    {% endif %}
+    {% if request.query_params.get('registered') %}
+      <div class="mb-4 p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm">Бүртгэл амжилттай. Нэвтэрнэ үү.</div>
+    {% endif %}
+    <form action="/login" method="POST" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold mb-1">Нэвтрэх нэр / Сурагчийн код</label>
+        <input type="text" name="username" required class="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-[#714B67] outline-none">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">Нууц үг</label>
+        <input type="password" name="password" required class="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-[#714B67] outline-none">
+      </div>
+      <button type="submit" class="w-full py-2.5 bg-[#714B67] text-white font-semibold rounded-xl hover:bg-[#5b3c53] transition">Нэвтрэх</button>
+    </form>
 
-  <hr class="my-6">
+    <hr class="my-6">
+    <details class="text-sm">
+      <summary class="cursor-pointer font-semibold text-slate-600">Багш бүртгүүлэх</summary>
+      <form action="/register/teacher" method="POST" class="space-y-3 mt-3">
+        <input type="text" name="username" placeholder="Нэвтрэх нэр" required class="w-full px-3 py-2 border rounded-lg">
+        <input type="password" name="password" placeholder="Нууц үг" required class="w-full px-3 py-2 border rounded-lg">
+        <button type="submit" class="w-full py-2 bg-slate-800 text-white font-semibold rounded-lg">Багш бүртгэх</button>
+      </form>
+    </details>
+  </div>
 
-  <h3 class="text-sm font-bold text-slate-500 mb-3 text-center">Шинээр бүртгүүлэх</h3>
-  <form action="/register" method="POST" class="space-y-3">
-    <input type="text" name="username" placeholder="Шинэ хэрэглэгчийн нэр" required class="w-full px-3 py-2 border rounded-lg text-sm">
-    <input type="password" name="password" placeholder="Нууц үг" required class="w-full px-3 py-2 border rounded-lg text-sm">
-    <select name="role" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-      <option value="student">Сурагч (Student)</option>
-      <option value="teacher">Багш (Teacher)</option>
-    </select>
-    <button type="submit" class="w-full py-2 bg-slate-800 text-white text-sm font-semibold rounded-lg hover:bg-slate-700">Бүртгүүлэх</button>
-  </form>
+  <div class="bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
+    <h2 class="text-xl font-bold text-[#714B67] mb-2">Сурагчийн бүртгэл</h2>
+    <p class="text-xs text-slate-500 mb-4">Анги 1–12, бүлэг a/b/c (жишээ: 12a — ахлах анги).</p>
+    {% set reg_err = request.query_params.get('error') %}
+    {% if reg_err and reg_err != '1' %}
+      <div class="mb-4 p-3 rounded-lg bg-rose-50 text-rose-800 text-sm">
+        {% if reg_err == 'invalid_grade' %}Анги буруу байна (1a–12c).{% elif reg_err == 'exists' %}Сурагчийн код, имэйл эсвэл нэр давхцаж байна.{% elif reg_err == 'photo_required' %}Зураг заавал оруулна.{% elif reg_err == 'invalid_photo' %}Зураг JPG/PNG/WEBP байх ёстой.{% else %}Бүртгэлийн алдаа. Бүх талбарыг шалгана уу.{% endif %}
+      </div>
+    {% endif %}
+    <form action="/register" method="POST" enctype="multipart/form-data" class="space-y-3 text-sm">
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-semibold mb-1">Анги/бүлэг</label>
+          <select name="grade" required class="w-full px-3 py-2 border rounded-lg bg-white">
+            <option value="">-- Сонгох --</option>
+            {% for g in grade_options %}
+              <option value="{{ g }}">{{ g }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Хүйс</label>
+          <select name="gender" required class="w-full px-3 py-2 border rounded-lg bg-white">
+            <option value="">--</option>
+            <option value="Эр">Эр</option>
+            <option value="Эм">Эм</option>
+            <option value="Бусад">Бусад</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <input type="text" name="name" placeholder="Нэр" required class="w-full px-3 py-2 border rounded-lg">
+        <input type="text" name="surname" placeholder="Овог" required class="w-full px-3 py-2 border rounded-lg">
+      </div>
+      <input type="text" name="student_code" placeholder="Сурагчийн код (StudentCode)" required class="w-full px-3 py-2 border rounded-lg">
+      <input type="email" name="email" placeholder="Имэйл" required class="w-full px-3 py-2 border rounded-lg">
+      <input type="text" name="phone" placeholder="Утас" required class="w-full px-3 py-2 border rounded-lg">
+      <input type="text" name="instagram" placeholder="Instagram (заавал биш)" class="w-full px-3 py-2 border rounded-lg">
+      <input type="password" name="password" placeholder="Нууц үг" required class="w-full px-3 py-2 border rounded-lg">
+      <div>
+        <label class="block text-xs font-semibold mb-1">Зураг</label>
+        <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required class="w-full text-xs">
+      </div>
+      <button type="submit" class="w-full py-2.5 bg-[#714B67] text-white font-semibold rounded-xl hover:bg-[#5b3c53]">Сурагч бүртгэх</button>
+    </form>
+  </div>
 </div>
 {% endblock %}

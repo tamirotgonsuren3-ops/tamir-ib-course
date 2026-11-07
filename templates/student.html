@@ -1,44 +1,50 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block content %}
 <div class="space-y-6">
-  <h1 class="text-2xl font-bold">Миний Сургалтын Хөтөлбөр</h1>
+  <h1 class="text-2xl font-bold">Таны Сурах Материалууд</h1>
+  {% if request.query_params.get('error') == 'exam_inactive' %}
+    <div class="p-3 rounded-lg bg-amber-50 text-amber-900 text-sm border border-amber-200">Энэ шалгалт одоогоор идэвхгүй байна.</div>
+  {% endif %}
+  {% if request.query_params.get('error') == 'exam_inactive' %}
+    <div class="p-3 rounded-lg bg-amber-50 text-amber-900 text-sm border border-amber-200">Энэ шалгалт одоогоор идэвхгүй байна.</div>
+  {% endif %}
 
   <!-- Lessons -->
   <div>
-    <h2 class="text-lg font-bold text-[#714B67] mb-3">📖 Интерактив Хичээлүүд</h2>
+    <h2 class="text-lg font-bold text-[#714B67] mb-3">ðŸ“– Ð˜Ð½Ñ‚ÐµÑ€Ð°ÐºÑ‚Ð¸Ð² Ð¥Ð¸Ñ‡ÑÑÐ»Ò¯Ò¯Ð´</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       {% for l in lessons %}
         <div class="bg-white p-5 rounded-2xl shadow-sm border flex justify-between items-center">
           <div>
             <h3 class="font-bold text-slate-800">{{ l.title }}</h3>
-            <span class="text-xs text-slate-400">Слайд танилцуулга</span>
+            <span class="text-xs text-slate-400">Ð¡Ð»Ð°Ð¹Ð´ Ñ‚Ð°Ð½Ð¸Ð»Ñ†ÑƒÑƒÐ»Ð³Ð°</span>
           </div>
-          <a href="/lesson/view/{{ l.id }}" target="_blank" class="px-4 py-2 bg-[#714B67] text-white text-xs font-semibold rounded-xl hover:bg-[#5c3c54]">Слайд Үзэх ↗</a>
+          <a href="/lesson/view/{{ l.id }}" target="_blank" class="px-4 py-2 bg-[#714B67] text-white text-xs font-semibold rounded-xl hover:bg-[#5c3c54]">Ð¡Ð»Ð°Ð¹Ð´ Ò®Ð·ÑÑ… â†—</a>
         </div>
       {% else %}
-        <p class="text-sm text-slate-400">Одоогоор хичээл нийтлэгдээгүй байна.</p>
+        <p class="text-sm text-slate-400">ÐžÐ´Ð¾Ð¾Ð³Ð¾Ð¾Ñ€ Ñ…Ð¸Ñ‡ÑÑÐ» Ð½Ð¸Ð¹Ñ‚Ð»ÑÐ³Ð´ÑÑÐ³Ò¯Ð¹ Ð±Ð°Ð¹Ð½Ð°.</p>
       {% endfor %}
     </div>
   </div>
 
   <!-- Quizzes -->
   <div class="mt-8">
-    <h2 class="text-lg font-bold text-teal-700 mb-3">📝 Шалгалтууд (IB Үнэлгээтэй)</h2>
+    <h2 class="text-lg font-bold text-teal-700 mb-3">ðŸ“ Ð¨Ð°Ð»Ð³Ð°Ð»Ñ‚ÑƒÑƒÐ´ (IB Ò®Ð½ÑÐ»Ð³ÑÑÑ‚ÑÐ¹)</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       {% for q in quizzes %}
         <div class="bg-white p-5 rounded-2xl shadow-sm border flex justify-between items-center">
           <div>
             <h3 class="font-bold text-slate-800">{{ q.title }}</h3>
-            <span class="text-xs text-slate-500">Сэдэв: {{ q.lesson_title }}</span>
+            <span class="text-xs text-slate-500">Ð¡ÑÐ´ÑÐ²: {{ q.lesson_title }}</span>
           </div>
           {% if q.sub_id %}
-            <a href="/quiz/result/{{ q.sub_id }}" class="px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-xl hover:bg-emerald-700">Үр дүн & IB Оноо харах</a>
+            <a href="/quiz/result/{{ q.sub_id }}" class="px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-xl hover:bg-emerald-700">Ò®Ñ€ Ð´Ò¯Ð½ & IB ÐžÐ½Ð¾Ð¾ Ñ…Ð°Ñ€Ð°Ñ…</a>
           {% else %}
-            <a href="/quiz/take/{{ q.id }}" class="px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-xl hover:bg-teal-700">Шалгалт Өгөх ➔</a>
+            <a href="/quiz/take/{{ q.id }}" class="px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-xl hover:bg-teal-700">Ð¨Ð°Ð»Ð³Ð°Ð»Ñ‚ Ó¨Ð³Ó©Ñ… âž”</a>
           {% endif %}
         </div>
       {% else %}
-        <p class="text-sm text-slate-400">Одоогоор шалгалт нийтлэгдээгүй байна.</p>
+        <p class="text-sm text-slate-400">ÐžÐ´Ð¾Ð¾Ð³Ð¾Ð¾Ñ€ ÑˆÐ°Ð»Ð³Ð°Ð»Ñ‚ Ð½Ð¸Ð¹Ñ‚Ð»ÑÐ³Ð´ÑÑÐ³Ò¯Ð¹ Ð±Ð°Ð¹Ð½Ð°.</p>
       {% endfor %}
     </div>
   </div>

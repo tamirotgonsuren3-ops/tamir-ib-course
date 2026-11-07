@@ -71,7 +71,10 @@
 
   <!-- Published lessons and exams -->
   <div class="bg-white p-6 rounded-2xl shadow-sm border">
-    <h3 class="text-md font-bold mb-4">Нийтлэгдсэн Хичээл & Шалгалтууд</h3>
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-md font-bold">Нийтлэгдсэн Хичээл & Шалгалтууд</h3>
+      <a href="/scores" class="text-sm font-semibold text-teal-700 hover:underline">Дүн харах →</a>
+    </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <section>
         <h4 class="font-bold text-sm mb-3">Хичээлүүд</h4>
@@ -87,12 +90,24 @@
         </div>
       </section>
       <section>
-        <h4 class="font-bold text-sm mb-3">Шалгалтууд</h4>
+        <h4 class="font-bold text-sm mb-3">Шалгалтууд (идэвхжүүлэх/унтраах)</h4>
         <div class="space-y-3">
           {% for q in quizzes %}
-            <div class="p-3 border rounded-xl bg-slate-50">
-              <h5 class="font-bold text-sm text-[#714B67]">{{ q.title }}</h5>
-              <span class="text-xs text-slate-500">Хичээл: {{ q.lesson_title }}</span>
+            <div class="p-3 border rounded-xl bg-slate-50 flex items-center justify-between gap-2">
+              <div>
+                <h5 class="font-bold text-sm text-[#714B67]">{{ q.title }}</h5>
+                <span class="text-xs text-slate-500">Хичээл: {{ q.lesson_title }}</span>
+                {% if q.is_active %}
+                  <span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">Идэвхтэй</span>
+                {% else %}
+                  <span class="ml-2 text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">Идэвхгүй</span>
+                {% endif %}
+              </div>
+              <form action="/teacher/quiz/{{ q.id }}/toggle" method="POST">
+                <button type="submit" class="text-xs px-3 py-1.5 rounded-lg border {% if q.is_active %}bg-rose-50 text-rose-700 hover:bg-rose-100{% else %}bg-emerald-50 text-emerald-700 hover:bg-emerald-100{% endif %}">
+                  {% if q.is_active %}Унтраах{% else %}Идэвхжүүлэх{% endif %}
+                </button>
+              </form>
             </div>
           {% else %}
             <p class="text-sm text-slate-400">Одоогоор шалгалт үүсгээгүй байна.</p>
