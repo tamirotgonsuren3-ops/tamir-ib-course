@@ -170,7 +170,8 @@ def generate_and_save_quiz(
     print("🤖 Gemini 2.5 Flash ажиллаж байна...")
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            # model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
