@@ -172,7 +172,9 @@ def teacher_dashboard(request: Request, user: dict = Depends(get_current_user), 
     c = db.cursor()
     c.execute("SELECT * FROM lessons WHERE teacher_id = ?", (user["id"],))
     lessons = c.fetchall()
-    c.execute("SELECT quizzes.*, lessons.title as lesson_title FROM quizzes JOIN lessons ON quizzes.lesson_id = lessons.id WHERE quizzes.created_by = ?", (user["id"],))
+    c.execute("SELECT * FROM lessons ORDER BY id DESC")
+    published_lessons = c.fetchall()
+    c.execute("SELECT quizzes.*, lessons.title as lesson_title FROM quizzes JOIN lessons ON quizzes.lesson_id = lessons.id ORDER BY quizzes.id DESC")
     quizzes = c.fetchall()
     # return templates.TemplateResponse( request=request, name="teacher.html")
     return templates.TemplateResponse(
@@ -181,6 +183,7 @@ def teacher_dashboard(request: Request, user: dict = Depends(get_current_user), 
         context={
             "user": user,
             "lessons": lessons,
+            "published_lessons": published_lessons,
             "quizzes": quizzes
         }
     )

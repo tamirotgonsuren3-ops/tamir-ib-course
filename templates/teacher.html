@@ -45,21 +45,36 @@
     </div>
   </div>
 
-  <!-- Lessons & Quizzes List -->
+  <!-- Published lessons and exams -->
   <div class="bg-white p-6 rounded-2xl shadow-sm border">
     <h3 class="text-md font-bold mb-4">Нийтлэгдсэн Хичээл & Шалгалтууд</h3>
-    <div class="space-y-3">
-      {% for q in quizzes %}
-        <div class="flex items-center justify-between p-3 border rounded-xl bg-slate-50">
-          <div>
-            <h4 class="font-bold text-sm text-[#714B67]">{{ q.title }}</h4>
-            <span class="text-xs text-slate-500">Хичээл: {{ q.lesson_title }}</span>
-          </div>
-          <span class="text-xs bg-purple-100 text-[#714B67] font-semibold px-2 py-1 rounded">IB Үнэлгээтэй</span>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <section>
+        <h4 class="font-bold text-sm mb-3">Хичээлүүд</h4>
+        <div class="space-y-3">
+          {% for l in published_lessons %}
+            <div class="flex items-center justify-between gap-3 p-3 border rounded-xl bg-slate-50">
+              <span class="font-semibold text-sm text-slate-800">{{ l.title }}</span>
+              <a href="/lesson/view/{{ l.id }}" target="_blank" class="shrink-0 text-xs font-semibold text-[#714B67] hover:underline">Слайд үзэх</a>
+            </div>
+          {% else %}
+            <p class="text-sm text-slate-400">Одоогоор хичээл нийтлэгдээгүй байна.</p>
+          {% endfor %}
         </div>
-      {% else %}
-        <p class="text-xs text-slate-400">Одоогоор шалгалт үүсгээгүй байна.</p>
-      {% endfor %}
+      </section>
+      <section>
+        <h4 class="font-bold text-sm mb-3">Шалгалтууд</h4>
+        <div class="space-y-3">
+          {% for q in quizzes %}
+            <div class="p-3 border rounded-xl bg-slate-50">
+              <h5 class="font-bold text-sm text-[#714B67]">{{ q.title }}</h5>
+              <span class="text-xs text-slate-500">Хичээл: {{ q.lesson_title }}</span>
+            </div>
+          {% else %}
+            <p class="text-sm text-slate-400">Одоогоор шалгалт үүсгээгүй байна.</p>
+          {% endfor %}
+        </div>
+      </section>
     </div>
   </div>
 </div>
