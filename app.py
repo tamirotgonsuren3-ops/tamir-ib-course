@@ -2,6 +2,7 @@ import os
 import json
 import sqlite3
 import shutil
+import uuid
 from typing import List, Optional
 from fastapi import FastAPI, Request, Form, File, UploadFile, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
@@ -69,7 +70,7 @@ def init_db():
 init_db()
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
@@ -208,8 +209,12 @@ async def upload_lesson(
     if not user or user["role"] != "teacher":
         raise HTTPException(status_code=403)
     
-    # Save lesson.html
-    safe_filename = f"{user['id']}_{file.filename}"
+    original_filename = os.path.basename((file.filename or "").replace("\\", "/"))
+    extension = os.path.splitext(original_filename)[1].lower()
+    if extension not in {".html", ".htm"}:
+        raise HTTPException(status_code=400, detail="Зөвхөн .html эсвэл .htm файл оруулна уу.")
+
+    safe_filename = f"{user['id']}_{uuid.uuid4().hex}{extension}"
     file_path = os.path.join(UPLOAD_LESSONS, safe_filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
