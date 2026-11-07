@@ -1,13 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="space-y-8">
+  {% set error = request.query_params.get("error") %}
+  {% if error %}
+    <div role="alert" class="p-3 rounded-lg border border-rose-200 bg-rose-50 text-sm text-rose-800">
+      {% if error == "missing_gemini_key" %}
+        Шалгалт үүсгэхийн өмнө Gemini API түлхүүрээ хадгална уу.
+      {% elif error == "missing_deepseek_key" %}
+        Шалгалт үүсгэхийн өмнө DeepSeek API түлхүүрээ хадгална уу.
+      {% elif error == "image_requires_gemini" %}
+        Зураг хавсаргахдаа Gemini provider сонгоно уу.
+      {% elif error == "generation_failed" %}
+        Шалгалт үүсгэж чадсангүй. Provider, model болон холболтоо шалгана уу.
+      {% else %}
+        Сонгосон provider дэмжигдэхгүй байна.
+      {% endif %}
+    </div>
+  {% endif %}
   <div class="flex justify-between items-center">
     <h1 class="text-2xl font-black text-slate-800">Багшийн Удирдлагын Самбар</h1>
     <!-- Gemini API Key Form -->
-    <form action="/teacher/api-key" method="POST" class="flex items-center space-x-2 bg-white p-2 rounded-xl border shadow-sm">
-      <span class="text-xs font-semibold text-slate-500">Gemini Key:</span>
-      <input type="password" name="api_key" value="{{ user.gemini_api_key or '' }}" placeholder="AIzaSy..." class="text-xs px-2 py-1 border rounded w-48">
-      <button type="submit" class="text-xs bg-teal-600 text-white px-3 py-1 rounded hover:bg-teal-700">Хадгалах</button>
+    <form action="/teacher/api-key" method="POST" class="flex flex-wrap items-center gap-2 bg-white p-2 rounded-xl border shadow-sm">
+      <label for="gemini-api-key" class="text-xs font-semibold text-slate-500">Gemini</label>
+      <input id="gemini-api-key" type="password" name="api_key" value="{{ user.gemini_api_key or '' }}" placeholder="API key" class="text-xs px-2 py-1 border rounded w-32">
+      <label for="deepseek-api-key" class="text-xs font-semibold text-slate-500">DeepSeek</label>
+      <input id="deepseek-api-key" type="password" name="deepseek_api_key" value="{{ user.deepseek_api_key or '' }}" placeholder="API key" class="text-xs px-2 py-1 border rounded w-32">
+      <button type="submit" class="text-xs bg-teal-600 text-white px-3 py-1 rounded hover:bg-teal-700">Түлхүүр хадгалах</button>
     </form>
   </div>
 
@@ -25,9 +43,15 @@
 
     <!-- 2. AI Quiz Generator with Multimodal Gemini -->
     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-      <h2 class="text-lg font-bold text-teal-700 mb-3">2. Gemini AI-аар IB Шалгалт Үүсгэх</h2>
-      <p class="text-xs text-slate-500 mb-4">Зураг (диаграмм, схем) болон prompt өгч IB Criteria A-D шалгалт бэлдүүлнэ.</p>
+      <h2 class="text-lg font-bold text-teal-700 mb-3">2. AI-аар шалгалт үүсгэх</h2>
+      <p class="text-xs text-slate-500 mb-4">AI нь A-D шалгуур тус бүрт 2, нийт 8 сонгох асуулт үүсгэнэ.</p>
       <form action="/teacher/create-quiz" method="POST" enctype="multipart/form-data" class="space-y-3">
+        <select name="provider" required class="w-full px-3 py-2 border rounded-xl text-sm bg-white">
+          <option value="gemini">Gemini</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="ollama">Ollama (local)</option>
+        </select>
+        <input type="text" name="model" placeholder="Model (provider-ийн default хоосон үлдээнэ)" class="w-full px-3 py-2 border rounded-xl text-sm">
         <select name="lesson_id" required class="w-full px-3 py-2 border rounded-xl text-sm bg-white">
           <option value="">-- Холбогдох хичээлийг сонгох --</option>
           {% for l in lessons %}
@@ -35,12 +59,12 @@
           {% endfor %}
         </select>
         <input type="text" name="quiz_title" placeholder="Шалгалтын гарчиг" required class="w-full px-3 py-2 border rounded-xl text-sm">
-        <textarea name="prompt" rows="3" placeholder="AI-д өгөх заавар (Жишээ: 10-р ангийнханд зориулж талхны цехийн НӨАТ болон цалингийн НДШ бодолтоор 2 сонгох, 2 задгай бичих асуулт Criterion A болон D шалгуураар үүсгэ)" required class="w-full px-3 py-2 border rounded-xl text-sm"></textarea>
+        <textarea name="prompt" rows="3" placeholder="Сэдэв, түвшин, шалгах мэдлэг (жишээ: Odoo агуулахын бараа хүлээн авах ба үлдэгдэл)" required class="w-full px-3 py-2 border rounded-xl text-sm"></textarea>
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Зураг хавсаргах (Заавал биш):</label>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Зураг хавсаргах (зөвхөн Gemini):</label>
           <input type="file" name="image" accept="image/*" class="w-full text-xs text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:bg-teal-50 file:text-teal-700">
         </div>
-        <button type="submit" class="w-full py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700">✨ Gemini-ээр Шалгалт Бэлтгэх</button>
+        <button type="submit" class="w-full py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700">Шалгалт үүсгэх</button>
       </form>
     </div>
   </div>

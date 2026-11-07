@@ -3,17 +3,12 @@ import json
 import sqlite3
 import shutil
 import uuid
-from typing import List, Optional
+from typing import Optional
 from fastapi import FastAPI, Request, Form, File, UploadFile, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
-from PIL import Image
-
-# Google GenAI New Official SDK
-from google import genai
-from google.genai import types
+from quiz_engine import generate_quiz, score_quiz
 
 app = FastAPI(title="EduPath IB & Odoo ERP Learning Platform")
 
@@ -37,8 +32,12 @@ def init_db():
         username TEXT UNIQUE,
         password TEXT,
         role TEXT,
-        gemini_api_key TEXT
+        gemini_api_key TEXT,
+        deepseek_api_key TEXT
     )''')
+    user_columns = {row[1] for row in c.execute("PRAGMA table_info(users)").fetchall()}
+    if "deepseek_api_key" not in user_columns:
+        c.execute("ALTER TABLE users ADD COLUMN deepseek_api_key TEXT")
     # Хичээлүүд (lesson.html)
     c.execute('''CREATE TABLE IF NOT EXISTS lessons (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,33 +75,6 @@ def get_db():
         yield conn
     finally:
         conn.close()
-
-# --- PYDANTIC SCHEMAS FOR STRUCTURED GEMINI OUTPUT ---
-class QuizQuestion(BaseModel):
-    id: int
-    question_type: str = Field(description="'multiple_choice' or 'written_response'")
-    target_criteria: str = Field(description="IB Criteria: 'Criterion A', 'Criterion B', 'Criterion C', or 'Criterion D'")
-    question_text: str
-    options: Optional[List[str]] = Field(default=None, description="4 choices for multiple choice")
-    correct_option_index: Optional[int] = Field(default=None, description="Index 0-3 if multiple choice")
-    rubric_guidance: str = Field(description="What an excellent answer must include for IB evaluation")
-
-class GeneratedQuiz(BaseModel):
-    quiz_title: str
-    questions: List[QuizQuestion]
-
-class CriterionScore(BaseModel):
-    criterion: str = Field(description="Criterion A, B, C, or D")
-    score: int = Field(description="IB score from 0 to 8")
-    descriptor: str = Field(description="e.g. 1-2 Limited, 3-4 Adequate, 5-6 Substantial, 7-8 Excellent")
-    strengths: str
-    areas_for_improvement: str
-
-class IBAssessmentResult(BaseModel):
-    overall_summary: str
-    criteria_scores: List[CriterionScore]
-    final_grade_boundary: str = Field(description="IB Grade from 1 to 7 based on aggregate performance")
-    teacher_notes: str
 
 # --- AUTH HELPERS (Cookie-based session) ---
 def get_current_user(request: Request, db: sqlite3.Connection = Depends(get_db)):
@@ -191,14 +163,18 @@ def teacher_dashboard(request: Request, user: dict = Depends(get_current_user), 
 
 @app.post("/teacher/api-key")
 def update_api_key(
-    api_key: str = Form(...),
+    api_key: str = Form(""),
+    deepseek_api_key: str = Form(""),
     user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db)
 ):
     if not user or user["role"] != "teacher":
         raise HTTPException(status_code=403)
     c = db.cursor()
-    c.execute("UPDATE users SET gemini_api_key = ? WHERE id = ?", (api_key.strip(), user["id"]))
+    c.execute(
+        "UPDATE users SET gemini_api_key = ?, deepseek_api_key = ? WHERE id = ?",
+        (api_key.strip(), deepseek_api_key.strip(), user["id"])
+    )
     db.commit()
     return RedirectResponse("/teacher?apikey_updated=1", status_code=status.HTTP_302_FOUND)
 
@@ -228,63 +204,53 @@ async def upload_lesson(
     return RedirectResponse("/teacher?lesson_uploaded=1", status_code=status.HTTP_302_FOUND)
 
 @app.post("/teacher/create-quiz")
-async def create_quiz_with_gemini(
+def create_quiz_with_gemini(
     lesson_id: int = Form(...),
     quiz_title: str = Form(...),
     prompt: str = Form(...),
+    provider: str = Form("gemini"),
+    model: str = Form(""),
     image: Optional[UploadFile] = File(None),
     user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db)
 ):
     if not user or user["role"] != "teacher":
         raise HTTPException(status_code=403)
-    if not user["gemini_api_key"]:
-        return RedirectResponse("/teacher?error=no_api_key", status_code=status.HTTP_302_FOUND)
+    provider_keys = {
+        "gemini": user["gemini_api_key"],
+        "deepseek": user["deepseek_api_key"],
+        "ollama": None,
+    }
+    if provider not in provider_keys:
+        return RedirectResponse("/teacher?error=unsupported_provider", status_code=status.HTTP_302_FOUND)
+    if provider != "ollama" and not provider_keys[provider]:
+        return RedirectResponse(f"/teacher?error=missing_{provider}_key", status_code=status.HTTP_302_FOUND)
+    if image and image.filename and provider != "gemini":
+        return RedirectResponse("/teacher?error=image_requires_gemini", status_code=status.HTTP_302_FOUND)
 
-    # Initialize Google GenAI Client
-    client = genai.Client(api_key=user["gemini_api_key"])
-    contents = []
-
-    # Handle Image if uploaded
     image_saved_path = None
+    image_path = None
     if image and image.filename:
-        safe_img_name = f"quiz_{user['id']}_{image.filename}"
+        extension = os.path.splitext(image.filename)[1].lower()
+        safe_img_name = f"quiz_{user['id']}_{uuid.uuid4().hex}{extension}"
         img_dest = os.path.join(UPLOAD_IMAGES, safe_img_name)
         with open(img_dest, "wb") as buf:
             shutil.copyfileobj(image.file, buf)
         image_saved_path = safe_img_name
-        
-        # Load image with PIL for Gemini SDK
-        pil_image = Image.open(img_dest)
-        contents.append(pil_image)
-
-    system_instruction = (
-        "You are an expert International Baccalaureate (IB) evaluator and business teacher. "
-        "Create high-school level quiz questions that test students on business, ERP systems, "
-        "accounting, and economics. Ensure you include both multiple-choice and written open-response questions. "
-        "Explicitly map questions to IB MYP/DP Assessment Criteria: "
-        "Criterion A (Knowing and Understanding), Criterion B (Inquiring/Planning), "
-        "Criterion C (Processing/Evaluating), or Criterion D (Reflecting & Real-World Application)."
-    )
-
-    full_prompt = f"{system_instruction}\n\nTeacher Request: {prompt}\nTitle: {quiz_title}"
-    contents.append(full_prompt)
+        image_path = img_dest
 
     try:
-        # Generate Structured Quiz using Gemini 2.5 Flash
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=contents,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=GeneratedQuiz,
-                temperature=0.3
-            ),
+        parsed_quiz = generate_quiz(
+            provider=provider,
+            prompt=prompt,
+            title=quiz_title,
+            api_key=provider_keys[provider],
+            model=model.strip() or None,
+            image_path=image_path,
         )
-        parsed_quiz: GeneratedQuiz = json.loads(response.text)
     except Exception as e:
-        print("Gemini Generation Error:", e)
-        return RedirectResponse(f"/teacher?error=generation_failed&msg={str(e)}", status_code=status.HTTP_302_FOUND)
+        print(f"Quiz generation error ({provider}):", e)
+        return RedirectResponse("/teacher?error=generation_failed", status_code=status.HTTP_302_FOUND)
 
     c = db.cursor()
     c.execute(
@@ -369,62 +335,26 @@ async def submit_quiz(
         raise HTTPException(status_code=403)
     
     c = db.cursor()
-    c.execute("SELECT q.*, u.gemini_api_key FROM quizzes q JOIN users u ON q.created_by = u.id WHERE q.id = ?", (quiz_id,))
+    c.execute("SELECT * FROM quizzes WHERE id = ?", (quiz_id,))
     quiz_row = c.fetchone()
-    if not quiz_row or not quiz_row["gemini_api_key"]:
-        raise HTTPException(status_code=400, detail="Teacher API Key is missing for grading")
+    if not quiz_row:
+        raise HTTPException(status_code=404, detail="Quiz not found")
 
     form_data = await request.form()
     quiz_data = json.loads(quiz_row["questions_json"])
-    
-    student_answers = []
-    for q in quiz_data["questions"]:
-        qid = str(q["id"])
-        ans = form_data.get(f"q_{qid}", "").strip()
-        student_answers.append({
-            "id": q["id"],
-            "target_criteria": q["target_criteria"],
-            "question_text": q["question_text"],
-            "question_type": q["question_type"],
-            "student_answer": ans,
-            "correct_option_index": q.get("correct_option_index"),
-            "rubric_guidance": q["rubric_guidance"]
-        })
-
-    # Prepare IB Evaluation Prompt for Gemini
-    eval_prompt = f"""
-    You are an official International Baccalaureate (IB) examiner.
-    Evaluate the following student's quiz submission for: "{quiz_row['title']}".
-    
-    The quiz includes multiple choice and in-depth written questions.
-    Grade the student strictly according to IB MYP/DP criteria on a 0 to 8 scale for each relevant criterion:
-    - Criterion A: Knowing and understanding (0-8)
-    - Criterion B: Inquiring and designing / Planning (0-8)
-    - Criterion C: Processing and evaluating / Critical thinking (0-8)
-    - Criterion D: Reflecting on the impacts / Real-world application (0-8)
-    
-    Questions, student responses, and teacher rubric benchmarks:
-    {json.dumps(student_answers, indent=2, ensure_ascii=False)}
-    
-    Provide constructive, inspiring, and professional feedback with specific strengths and areas for improvement.
-    """
-
-    client = genai.Client(api_key=quiz_row["gemini_api_key"])
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=eval_prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=IBAssessmentResult,
-            temperature=0.2
-        ),
+    student_answers, criterion_scores, total_score = score_quiz(
+        quiz_data["questions"], form_data
     )
-    eval_result: IBAssessmentResult = json.loads(response.text)
+    eval_result = {
+        "criteria_scores": criterion_scores,
+        "total_score": total_score,
+        "overall_summary": f"{total_score} / 8 асуултад зөв хариулсан.",
+    }
 
     # Save submission
     c.execute(
         "INSERT INTO submissions (quiz_id, student_id, responses_json, evaluation_json, total_score) VALUES (?, ?, ?, ?, ?)",
-        (quiz_id, user["id"], json.dumps(student_answers), response.text, 0)
+        (quiz_id, user["id"], json.dumps(student_answers), json.dumps(eval_result), total_score)
     )
     db.commit()
     sub_id = c.lastrowid

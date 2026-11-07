@@ -3,32 +3,14 @@ import sys
 import json
 import sqlite3
 import argparse
-from typing import List, Optional
+from typing import Optional
 from html.parser import HTMLParser
-from pydantic import BaseModel, Field
-
-# Google GenAI Official SDK
-from google import genai
-from google.genai import types
+from quiz_engine import generate_quiz
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "edupath.db")
 UPLOAD_LESSONS = os.path.join(BASE_DIR, "uploads", "lessons")
 os.makedirs(UPLOAD_LESSONS, exist_ok=True)
-
-# --- PYDANTIC SCHEMAS (Web App-тай 100% нийцтэй) ---
-class QuizQuestion(BaseModel):
-    id: int
-    question_type: str = Field(description="'multiple_choice' or 'written_response'")
-    target_criteria: str = Field(description="'Criterion A', 'Criterion B', 'Criterion C', or 'Criterion D'")
-    question_text: str
-    options: Optional[List[str]] = Field(default=None, description="4 choices for multiple choice")
-    correct_option_index: Optional[int] = Field(default=None, description="Index 0-3 if multiple choice")
-    rubric_guidance: str = Field(description="IB evaluation benchmark criteria")
-
-class GeneratedQuiz(BaseModel):
-    quiz_title: str
-    questions: List[QuizQuestion]
 
 # --- HTML ТЕКСТ ЯЛГАГЧ ---
 class HTMLTextExtractor(HTMLParser):
@@ -69,25 +51,35 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def resolve_api_key(cli_key: Optional[str]) -> str:
+def resolve_api_key(provider: str, cli_key: Optional[str], teacher_id: int) -> Optional[str]:
+    if provider == "ollama":
+        return None
     if cli_key and cli_key.strip():
         return cli_key.strip()
-    
-    env_key = os.environ.get("GEMINI_API_KEY")
+
+    env_name = "DEEPSEEK_API_KEY" if provider == "deepseek" else "GEMINI_API_KEY"
+    env_key = os.environ.get(env_name)
     if env_key:
         return env_key.strip()
 
     if os.path.exists(DB_PATH):
         conn = get_db_connection()
         c = conn.cursor()
-        c.execute("SELECT gemini_api_key FROM users WHERE role = 'teacher' AND gemini_api_key IS NOT NULL AND gemini_api_key != '' LIMIT 1")
-        row = c.fetchone()
+        key_column = "deepseek_api_key" if provider == "deepseek" else "gemini_api_key"
+        columns = {row[1] for row in c.execute("PRAGMA table_info(users)").fetchall()}
+        row = None
+        if key_column in columns:
+            c.execute(
+                f"SELECT {key_column} FROM users WHERE id = ? AND role = 'teacher'",
+                (teacher_id,)
+            )
+            row = c.fetchone()
         conn.close()
-        if row and row["gemini_api_key"]:
-            return row["gemini_api_key"]
+        if row and row[0]:
+            return row[0]
 
-    print("❌ Алдаа: Gemini API Key олдсонгүй!")
-    print("Шийдэл: --api_key аргументаар өгөх эсвэл Вэб системдээ багшаар нэвтрэн API түлхүүрээ хадгална уу.")
+    print(f"❌ Алдаа: {provider} API key олдсонгүй!")
+    print("Шийдэл: --api_key, provider-ийн environment variable, эсвэл веб тохиргоонд түлхүүрээ оруулна уу.")
     sys.exit(1)
 
 def ensure_lesson_in_db(file_path: str, lesson_title: str, teacher_id: int) -> int:
@@ -122,8 +114,9 @@ def generate_and_save_quiz(
     quiz_title: Optional[str] = None,
     api_key: Optional[str] = None,
     teacher_id: int = 1,
-    num_mcq: int = 3,
-    num_written: int = 2
+    provider: str = "gemini",
+    model: Optional[str] = None,
+    prompt: str = "",
 ):
     if not os.path.exists(file_input):
         print(f"❌ Алдаа: '{file_input}' файл олдсонгүй.")
@@ -133,55 +126,42 @@ def generate_and_save_quiz(
     if file_ext not in [".pdf", ".html", ".htm"]:
         print(f"❌ Алдаа: Зөвхөн .pdf болон .html файлууд дэмжигдэнэ (Өгөгдсөн: {file_ext})")
         sys.exit(1)
+    if file_ext == ".pdf" and provider != "gemini":
+        print("❌ Алдаа: PDF оролт одоогоор зөвхөн Gemini provider-той ажиллана.")
+        sys.exit(1)
 
     # Гарчиг тохируулах
     if not quiz_title:
         base_name = os.path.splitext(os.path.basename(file_input))[0]
         quiz_title = f"{base_name.capitalize()} - IB Үнэлгээний Сорил"
 
-    resolved_key = resolve_api_key(api_key)
-    print("🔑 Gemini API түлхүүр баталгаажлаа.")
+    resolved_key = resolve_api_key(provider, api_key, teacher_id)
+    print(f"🔑 {provider} provider сонгогдлоо.")
 
     # DB-д бүртгэх
     lesson_id = ensure_lesson_in_db(file_input, quiz_title, teacher_id)
-    client = genai.Client(api_key=resolved_key)
-
-    prompt_instruction = f"""
-    Та бол олон улсын бакалавр (IB - International Baccalaureate) болон Бизнес, ERP, Санхүүгийн мэргэжлийн багш.
-    Өгөгдсөн хичээлийн материалын агуулгыг үндэслэн 10-р ангийн сурагчдад зориулсан шалгалт үүсгэнэ үү.
-
-    ШАЛГАЛТЫН ШААРДЛАГА:
-    1. Нийт {num_mcq} сонгох асуулт (multiple_choice), тус бүр 4 сонголттой ба зөв хариултын индексийг (0-3) заана.
-    2. Нийт {num_written} задгай бичих асуулт (written_response) үүсгэнэ.
-    3. Асуултууд нь материал дээрх гол ойлголтууд, тооцоолол, кейс, дебит/кредит, татвар (НӨАТ, ААННОАТ), нийгмийн даатгал, үйл ажиллагааны логикийг шалгана.
-    4. Асуулт бүрийг IB MYP/DP үнэлгээний шалгуурт (Criterion A, Criterion B, Criterion C, эсвэл Criterion D) заавал оноож, rubric_guidance талбарт сурагчаас юу шаардахыг бичнэ үү.
-    """
-
-    contents = []
     if file_ext == ".pdf":
-        print(f"📄 PDF файлыг Gemini руу шууд илгээж байна (Зураг, хүснэгтийг бүрэн танина): {file_input}...")
-        uploaded_pdf = client.files.upload(file=file_input)
-        contents = [uploaded_pdf, prompt_instruction]
+        print(f"📄 PDF материал ашиглаж байна: {file_input}...")
+        lesson_content = "PDF хичээлийн материалыг хавсралтаас ашиглана уу."
+        pdf_path = file_input
     else:
         print(f"📄 HTML файлыг уншиж байна: {file_input}...")
-        extracted_text = extract_content_from_html(file_input)
-        contents = [f"{prompt_instruction}\n\nСЛАЙДЫН АГУУЛГА:\n{extracted_text}"]
+        lesson_content = extract_content_from_html(file_input)
+        pdf_path = None
 
-    print("🤖 Gemini 2.5 Flash ажиллаж байна...")
+    full_prompt = "\n\n".join(part for part in (prompt.strip(), lesson_content) if part)
+    print(f"🤖 {provider} ашиглан 8 асуулт үүсгэж байна...")
     try:
-        response = client.models.generate_content(
-            # model="gemini-2.5-flash",
-            model="gemini-3.8-flash",
-            contents=contents,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=GeneratedQuiz,
-                temperature=0.2
-            ),
+        parsed_quiz = generate_quiz(
+            provider=provider,
+            prompt=full_prompt,
+            title=quiz_title,
+            api_key=resolved_key,
+            model=model,
+            pdf_path=pdf_path,
         )
-        parsed_quiz = json.loads(response.text)
     except Exception as e:
-        print(f"❌ Gemini generation алдаа гарлаа: {e}")
+        print(f"❌ {provider} generation алдаа гарлаа: {e}")
         sys.exit(1)
 
     # Өгөгдлийн санд хадгалах
@@ -189,7 +169,7 @@ def generate_and_save_quiz(
     c = conn.cursor()
     c.execute(
         "INSERT INTO quizzes (lesson_id, title, questions_json, image_path, created_by) VALUES (?, ?, ?, ?, ?)",
-        (lesson_id, quiz_title, json.dumps(parsed_quiz), None, teacher_id)
+        (lesson_id, quiz_title, json.dumps(parsed_quiz.model_dump()), None, teacher_id)
     )
     conn.commit()
     quiz_id = c.lastrowid
@@ -199,19 +179,20 @@ def generate_and_save_quiz(
     print(f"✅ АМЖИЛТТАЙ! Шалгалт системд хадгалагдлаа.")
     print(f"📌 Шалгалтын ID: {quiz_id}")
     print(f"📌 Шалгалтын нэр: {quiz_title}")
-    print(f"📌 Асуултын тоо: {len(parsed_quiz['questions'])} ({num_mcq} сонгох, {num_written} задгай)")
+    print(f"📌 Асуултын тоо: {len(parsed_quiz.questions)} (шалгуур тус бүрт 2)")
     print(f"🌐 Вэб линк: http://localhost:8000/quiz/take/{quiz_id}")
     print("="*50)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate IB Quiz from PDF or HTML Presentation using Gemini")
+    parser = argparse.ArgumentParser(description="Generate a fixed-format IB quiz using Gemini, DeepSeek, or Ollama")
     parser.add_argument("--file_input", "--html_file_input", dest="file_input", type=str, required=True, 
                         help="Path to .pdf or .html presentation file")
     parser.add_argument("--quiz_title", type=str, default=None, help="Custom Title for the quiz")
-    parser.add_argument("--api_key", type=str, default=None, help="Gemini API Key (optional if saved in Web App)")
+    parser.add_argument("--provider", choices=("gemini", "deepseek", "ollama"), default="gemini")
+    parser.add_argument("--model", type=str, default=None, help="Optional provider model override")
+    parser.add_argument("--prompt", type=str, default="", help="Additional instructions or topic context")
+    parser.add_argument("--api_key", type=str, default=None, help="Provider API key (optional if saved or set in environment)")
     parser.add_argument("--teacher_id", type=int, default=1, help="Teacher User ID (default: 1)")
-    parser.add_argument("--num_mcq", type=int, default=3, help="Number of Multiple Choice Questions (default: 3)")
-    parser.add_argument("--num_written", type=int, default=2, help="Number of Written Open Questions (default: 2)")
 
     args = parser.parse_args()
     generate_and_save_quiz(
@@ -219,6 +200,7 @@ if __name__ == "__main__":
         quiz_title=args.quiz_title,
         api_key=args.api_key,
         teacher_id=args.teacher_id,
-        num_mcq=args.num_mcq,
-        num_written=args.num_written
+        provider=args.provider,
+        model=args.model,
+        prompt=args.prompt,
     )

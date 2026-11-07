@@ -1,8 +1,8 @@
 # 🎓 EduPath IB & Odoo ERP Learning Platform
 
-> **10-р ангийн сурагчдад зориулсан Бизнес, ERP систем, Нягтлан бодох бүртгэлийн интерактив сургалт & Gemini AI-д суурилсан IB (International Baccalaureate) үнэлгээний систем.**
+> **10-р ангийн сурагчдад зориулсан Бизнес, ERP систем, Нягтлан бодох бүртгэлийн интерактив сургалт ба IB шалгалтын систем.**
 
-EduPath нь багшийн бэлтгэсэн интерактив HTML хичээлүүдийг үзүүлэх, Google Gemini 2.5 Flash ашиглан схем зураг болон prompt-оос шалгалт автоматаар үүсгэх, сурагчдын задгай бичих хариултуудыг **IB Criteria A, B, C, D** шалгуурын дагуу секундийн дотор бодитойгоор дүгнэх зориулалттай боловсролын платформ юм.
+EduPath нь багшийн HTML хичээлүүдийг үзүүлж, Gemini, DeepSeek эсвэл Ollama-аар **IB Criteria A, B, C, D** шалгуурт хуваарилсан 8 асуулттай шалгалт үүсгэнэ. Сурагчийн дүнг зөв хариултын тоогоор локал тооцдог бөгөөд шалгалт өгөх үед AI дууддаггүй.
 
 ---
 
@@ -10,23 +10,20 @@ EduPath нь багшийн бэлтгэсэн интерактив HTML хич�
 
 ### 👨‍🏫 Багшийн боломж:
 - **Хичээлийн слайд (HTML) байршуулах:** Өмнө нь бэлтгэсэн интерактив танилцуулга (`lesson.html`, Odoo ERP, Татварын хичээл)-ийг системд шууд байршуулна.
-- **Хувийн Gemini API түлхүүр тохируулах:** Google AI Studio-ийн үнэгүй API түлхүүрээ өөрөө удирдах боломжтой.
-- **Зураг & Prompt-оор шалгалт үүсгэх (Multimodal AI):** Нийлүүлэлтийн сүлжээ, санхүүгийн схем зураг хавсарган Gemini-ээр сонгох болон задгай хариулттай асуултуудыг автоматаар бэлдүүлнэ.
-- **IB стандартад нийцсэн тест:** Асуулт бүр IB-ийн A, B, C, D шалгууруудтай автоматаар холбогдоно.
+- **AI provider сонгох:** Gemini, DeepSeek эсвэл локал Ollama-аар шалгалт үүсгэнэ.
+- **Тогтмол бүтэцтэй шалгалт:** Нийт 8 сонгох асуулт; шалгуур бүрт 2 асуулт, тус бүр 2 сонголттой (1 зөв, 1 буруу).
+- **Зураг ашиглах:** Шалгалт үүсгэх үед Gemini provider-той зураг хавсаргаж болно.
 
 ### 👩‍🎓 Сурагчийн боломж:
 - **Интерактив слайд судлах:** Байршуулсан хичээлүүдийг бүтэн дэлгэцээр (Fullscreen) болон PDF хэлбэрээр үзэх.
-- **Шалгалт өгөх:** Сонгох болон өөрийн үгээр үндэслэлтэй задгай хариулт бичиж илгээх.
-- **Шуурхай IB үнэлгээ & Зөвлөмж:** 
-  - Шалгуур бүр дээр 0-8 оноо авах
-  - Өөрийн давуу тал (Strengths) болон сайжруулах зүйл (Areas for improvement)-ээ нарийвчлан харах
-  - Эцсийн нэгдсэн IB 1-7 үнэлгээний дүнгээ шууд мэдэх.
+- **Шалгалт өгөх:** 8 сонгох асуултад хариулж илгээнэ.
+- **Шуурхай оноо:** A, B, C, D шалгуур тус бүр 0–2; нийт оноо 0–8. Зөвхөн хадгалсан зөв хариулттай тулгаж тооцно.
 
 ---
 
 ## 📐 IB (International Baccalaureate) Үнэлгээний Шалгуур
 
-Систем нь дараах 4 шалгуурын хүрээнд сурагчийн хариултыг задлан шинжилж дүгнэнэ (0–8 онооны шаталбар):
+Шалгалт бүр 4 шалгуурын хүрээнд 2 асуулттай. Оноо нь шалгуур тус бүрт зөв хариулсан асуултын тоо (0–2) байна.
 
 | Шалгуур | Нэршил | Тайлбар |
 | :--- | :--- | :--- |
@@ -40,11 +37,12 @@ EduPath нь багшийн бэлтгэсэн интерактив HTML хич�
 ## 🛠️ Ашигласан технологиуд (Tech Stack)
 
 - **Backend:** Python 3.10+, FastAPI, Starlette, Uvicorn
-- **AI Engine:** Google GenAI SDK (`google-genai`), Model: `gemini-2.5-flash`
+- **AI Engine:** Google GenAI (`google-genai`), DeepSeek API, Ollama API
 - **Database:** SQLite3 (`edupath.db`)
 - **Frontend:** Jinja2 Templates, Tailwind CSS (CDN)
 - **Validation:** Pydantic v2 (Strict JSON Schema)
 - **Image Processing:** Pillow (`PIL`)
+- **HTTP client:** `requests`
 
 ---
 
@@ -54,3 +52,21 @@ EduPath нь багшийн бэлтгэсэн интерактив HTML хич�
 ```bash
 git clone https://github.com/your-username/tamir-ib.git
 cd tamir-ib
+```
+
+### Ажиллуулах
+
+```bash
+python -m pip install -r requirements.txt
+python -m uvicorn app:app --reload
+```
+
+Багшийн самбарт Gemini болон DeepSeek API key-гээ хадгална. Ollama ашиглахдаа Ollama service-ээ асааж, model татсан байна. `OLLAMA_BASE_URL` (default `http://localhost:11434`) болон `OLLAMA_MODEL` (default `llama3.1`) environment variable-аар тохируулж болно.
+
+### CLI шалгалт үүсгэх
+
+```bash
+python create_quiz.py --file_input uploads/lessons/lesson.html --provider ollama --model llama3.1 --teacher_id 1
+```
+
+Provider сонголтууд: `gemini`, `deepseek`, `ollama`. Gemini болон DeepSeek key-г `--api_key`, `GEMINI_API_KEY` / `DEEPSEEK_API_KEY`, эсвэл веб дэх багшийн тохиргооноос авна. Ollama-д `OLLAMA_BASE_URL` ашиглана. PDF оролт зөвхөн Gemini provider-той ажиллана.
