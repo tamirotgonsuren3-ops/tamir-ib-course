@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Odoo ERP Дадлага: Бизнесийн Экосистем & Санхүү</title>
+  <style>
+    :root {
+      --odoo-purple: #714B67;
+      --odoo-teal: #00A09D;
+      --odoo-dark: #202b38;
+      --odoo-light: #f8fafc;
+      --odoo-accent: #e06f53;
+      --primary-border: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    }
+
+    body {
+      background-color: #121820;
+      color: #2d3748;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    /* Fixed Actions */
+    .toolbar {
+      position: fixed;
+      top: 15px;
+      right: 20px;
+      z-index: 1000;
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      background: var(--odoo-purple);
+      color: white;
+      border: none;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover { background: #875A7B; transform: translateY(-2px); }
+    .btn-pdf { background: #e53e3e; }
+    .btn-pdf:hover { background: #c53030; }
+
+    /* Slide Container */
+    .slide-wrapper {
+      width: 100%;
+      max-width: 1120px;
+      aspect-ratio: 16 / 9;
+      position: relative;
+    }
+
+    .slide {
+      width: 100%;
+      height: 100%;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+      padding: 38px 48px;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .slide.active {
+      display: flex;
+      animation: fadeIn 0.35s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.99); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .slide-header {
+      border-bottom: 2px solid #edf2f7;
+      padding-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .slide-header h2 {
+      font-size: 26px;
+      color: var(--odoo-dark);
+      font-weight: 700;
+    }
+
+    .tag {
+      background: #ede7f6;
+      color: var(--odoo-purple);
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin-top: 15px;
+    }
+
+    .slide-footer {
+      border-top: 1px solid #edf2f7;
+      padding-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #a0aec0;
+    }
+
+    /* Grids & Cards */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+
+    .card {
+      background: var(--odoo-light);
+      border-radius: 12px;
+      padding: 16px 20px;
+      border: 1px solid var(--primary-border);
+      position: relative;
+    }
+
+    .card h3 {
+      font-size: 16px;
+      margin-bottom: 8px;
+      color: var(--odoo-purple);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card p, .card li {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #4a5568;
+    }
+
+    .card ul {
+      padding-left: 18px;
+      margin-top: 6px;
+    }
+
+    .step-badge {
+      display: inline-block;
+      background: var(--odoo-teal);
+      color: white;
+      font-weight: bold;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      margin-bottom: 8px;
+    }
+
+    /* Chain Flow Visualization */
+    .chain-box {
+      background: #f7fafc;
+      border: 2px dashed #cbd5e0;
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+      font-size: 12px;
+      position: relative;
+    }
+    .chain-box h4 {
+      color: var(--odoo-purple);
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--primary-border);
+    }
+
+    th {
+      background: var(--odoo-purple);
+      color: white;
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) { background: #fdfdfd; }
+
+    /* Title Slide */
+    .title-slide {
+      text-align: center;
+      background: linear-gradient(135deg, #714B67 0%, #202b38 100%);
+      color: white;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .title-slide h1 {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    .title-slide p {
+      font-size: 16px;
+      opacity: 0.9;
+      max-width: 800px;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    /* Controls */
+    .controls {
+      margin-top: 15px;
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      color: white;
+      font-size: 14px;
+    }
+
+    /* PRINT TO PDF CONFIG */
+    @media print {
+      body { background: transparent !important; }
+      .toolbar, .controls { display: none !important; }
+      .slide-wrapper { max-width: 100% !important; width: 100% !important; }
+      .slide {
+        display: flex !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        page-break-after: always !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        padding: 30px 40px !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <button class="btn btn-pdf" onclick="window.print()">📄 PDF болгож хадгалах (Ctrl+P)</button>
+    <button class="btn" onclick="toggleFullScreen()">⛶ Дэлгэц дүүргэх</button>
+  </div>
+
+  <div class="slide-wrapper">
+
+    <!-- SLIDE 1: Title -->
+    <div class="slide title-slide active">
+      <span class="tag" style="background: rgba(255,255,255,0.2); color: #fff; margin-bottom: 15px;">10-р ангийн Бизнес & ERP Лаборатори</span>
+      <h1>Бизнесийн Экосистем & Санхүүгийн Урсгал</h1>
+      <p>Odoo ERP дээр өглөг, авлага, нэхэмжлэх үүсгэх, тооцоо нийлэх (Reconciliation) болон ангиараа 5 компанийн бодит зах зээлийн сүлжээ үүсгэх дадлага ажил</p>
+      <div style="background: rgba(0,0,0,0.25); padding: 10px 24px; border-radius: 30px; font-size: 13px;">
+        💡 Түлхүүр ойлголт: Quotation ➜ Sales Order ➜ Invoice ➜ Payment ➜ Reconciliation
+      </div>
+    </div>
+
+    <!-- SLIDE 2: Core Concepts -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>1. Санхүүгийн үндсэн 4 ойлголт (Энгийнээр)</h2>
+        <span class="tag">Онол & Ойлголт</span>
+      </div>
+      <div class="content">
+        <div class="grid-2">
+          <div class="card" style="border-left: 4px solid #3182ce;">
+            <h3>📄 Quotation (Үнийн санал)</h3>
+            <p><strong>"Би чамд энийг ийм үнээр нийлүүлж чадна, зөвшөөрөх үү?"</strong> гэсэн албан ёсны санал. Бараа ч гараагүй, мөнгө ч шилжээгүй үеийн баримт.</p>
+          </div>
+          <div class="card" style="border-left: 4px solid var(--odoo-accent);">
+            <h3>🧾 Invoice (Нэхэмжлэх)</h3>
+            <p><strong>"Бараагаа хүлээлгэж өглөө, тохиролцсон төлбөрөө төлнө үү!"</strong> гэсэн албан ёсны төлбөрийн нэхэмжлэл. Энэ үед компани хоорондын өр/авлага үүснэ.</p>
+          </div>
+          <div class="card" style="border-left: 4px solid #e53e3e;">
+            <h3>🤝 Өглөг (AP) vs Авлага (AR)</h3>
+            <p>
+              • <strong>Өглөг (Vendor Bill / Payable):</strong> Манай компани бусдад төлөх ёстой ӨР.<br>
+              • <strong>Авлага (Customer Invoice / Receivable):</strong> Бусад компаниас манайх авах ёстой МӨНГӨ.
+            </p>
+          </div>
+          <div class="card" style="border-left: 4px solid #38a169;">
+            <h3>⚖️ Reconciliation (Тооцоо нийлэх)</h3>
+            <p><strong>"Банкаар орж ирсэн мөнгө аль нэхэмжлэхийн мөнгө вэ?"</strong> гэдгийг тулгаж нэхэмжлэхийг "ТӨЛӨГДСӨН" төлөвт оруулан өрийг тэгшитгэх үйл явц.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Odoo ERP Practice Guide</span>
+        <span>Хуудас 2 / 10</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: Odoo Initial Setup (Company & Users) -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>2. Бэлтгэл 1: Odoo дээр Компаниа үүсгэх</h2>
+        <span class="tag">Дадлага 1</span>
+      </div>
+      <div class="content">
+        <div class="grid-3">
+          <div class="card">
+            <span class="step-badge">Алхам 1</span>
+            <h3>Компани бүртгэх</h3>
+            <p><strong>Settings ➜ Companies ➜ New:</strong></p>
+            <ul>
+              <li>Компанийн нэрээ өгөх (Жишээ: "Улаанбуудай ХХК")</li>
+              <li>Үндсэн валют: <strong>MNT (Төгрөг)</strong> сонгох</li>
+              <li>Багийнхаа лого, хаягийг оруулах</li>
+            </ul>
+          </div>
+          <div class="card">
+            <span class="step-badge">Алхам 2</span>
+            <h3>Багийн гишүүдийн эрх</h3>
+            <p><strong>Settings ➜ Users & Companies ➜ Users:</strong></p>
+            <ul>
+              <li>Багийн гишүүн бүрт имэйл үүсгэж хэрэглэгчээр бүртгэх</li>
+              <li>Дүрүүд хуваарилах: Захирал, Санхүүч, Агуулахын менежер, Борлуулагч</li>
+            </ul>
+          </div>
+          <div class="card">
+            <span class="step-badge">Алхам 3</span>
+            <h3>Холбогдох модулиуд</h3>
+            <p><strong>Apps цэснээс суулгах:</strong></p>
+            <ul>
+              <li><strong>Sales & Invoicing:</strong> Борлуулалт, нэхэмжлэх</li>
+              <li><strong>Purchase & Inventory:</strong> Худалдан авалт, агуулах</li>
+              <li><strong>Accounting:</strong> Санхүүгийн бүртгэл</li>
+              <li><strong>Fleet:</strong> (Тээврийн багт зориулсан)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Odoo ERP Practice Guide</span>
+        <span>Хуудас 3 / 10</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: Products & Opening Balance -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>3. Бэлтгэл 2: Агуулах, Бараа & Анхны хөрөнгө бүртгэх</h2>
+        <span class="tag">Дадлага 2</span>
+      </div>
+      <div class="content">
+        <div class="grid-3">
+          <div class="card">
+            <span class="step-badge">Бараа үүсгэх</span>
+            <h3>Inventory ➜ Products</h3>
+            <p>Өөрийн зарах эсвэл үйлдвэрлэх барааг бүртгэнэ:</p>
+            <ul>
+              <li><strong>Product Type:</strong> "Storable Product" (тоо ширхэг хадгалагддаг)</li>
+              <li><strong>Sales Price:</strong> Зарах үнэ</li>
+              <li><strong>Cost:</strong> Өөрийн өртөг</li>
+            </ul>
+          </div>
+          <div class="card">
+            <span class="step-badge">Анхны барааны үлдэгдэл</span>
+            <h3>Inventory ➜ Physical Inventory</h3>
+            <p>Бизнес хоосон эхлэхгүй тул анхны барааг тохируулна:</p>
+            <ul>
+              <li>"Apply" товч дарж эхний үлдэгдлийг оруулна</li>
+              <li>Жишээ: Гурилын багт 5,000 кг улаанбуудай бэлэн байна гэж бүртгэнэ</li>
+            </ul>
+          </div>
+          <div class="card">
+            <span class="step-badge">Бэлэн мөнгөний үлдэгдэл</span>
+            <h3>Accounting ➜ Bank / Cash</h3>
+            <p>Анхны хөрөнгө оруулалт оруулах:</p>
+            <ul>
+              <li>Accounting ➜ Configuration ➜ Journals (Bank/Cash)</li>
+              <li>Эхлэлийн үлдэгдэл (Opening Balance) болгон компани бүрт <strong>10,000,000₮</strong> бүртгэнэ</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Odoo ERP Practice Guide</span>
+        <span>Хуудас 4 / 10</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: Ecosystem Supply Chain (Class Simulation) -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>4. Ангийн зах зээлийн "Экосистем" (5 Багийн хамаарал)</h2>
+        <span class="tag">Симуляцийн дүрэм</span>
+      </div>
+      <div class="content">
+        <p style="font-size: 14px; margin-bottom: 15px; color: #4a5568;">
+          Энэ анги бол нэг хот! Таван баг нэг нэгэнгүйгээрээ оршин тогтнож чадахгүй. Хоорондоо худалдаа хийж мөнгө эргэлдүүлнэ:
+        </p>
+        <div class="grid-5">
+          <div class="chain-box">
+            <h4>🚛 1-р Баг</h4>
+            <strong>Хүргэлт & Тээвэр</strong>
+            <p style="margin-top: 6px;">Бүх багуудын барааг зөөж тээврийн хөлс (Нэхэмжлэх) авна.</p>
+          </div>
+          <div class="chain-box">
+            <h4>🌾 2-р Баг</h4>
+            <strong>Улаанбуудай & Гурил</strong>
+            <p style="margin-top: 6px;">Улаанбуудай хурааж гурил хийгээд 3-р баг болон сүлжээ дэлгүүрт зарна.</p>
+          </div>
+          <div class="chain-box">
+            <h4>🍞 3-р Баг</h4>
+            <strong>Талхны Үйлдвэр</strong>
+            <p style="margin-top: 6px;">2-р багаас гурил худалдан авч талх үйлдвэрлэн 4-р багт зарна.</p>
+          </div>
+          <div class="chain-box">
+            <h4>🏪 4-р Баг</h4>
+            <strong>Жижиглэн дэлгүүр</strong>
+            <p style="margin-top: 6px;">Талх болон барааг худалдан авч иргэдэд (багш, сурагчдад) ашигтай зарна.</p>
+          </div>
+          <div class="chain-box">
+            <h4>🚗 5-р Баг</h4>
+            <strong>Машин түрээс</strong>
+            <p style="margin-top: 6px;">1-р багт ачааны машин, бусад багт менежерийн машин түрээсэлнэ.</p>
+          </div>
+        </div>
+        <div style="background: #ebf8ff; border: 1px solid #bee3f8; border-radius: 8px; padding: 10px; margin-top: 15px; text-align: center; font-size: 13px; color: #2b6cb0;">
+          💡 <strong>Гол даалгавар:</strong> Бүх гүйлгээ заавал Odoo дээр <strong>Quotation ➜ Invoice ➜ Reconciliation</strong> дамжих ёстой!
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Odoo ERP Practice Guide</span>
+        <span>Хуудас 5 / 10</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: Group 1 & 2 Instructions -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>5. Багийн даалгавар: 1 & 2-р Бүлэг</h2>
+        <span class="tag">Багуудын роль</span>
+      </div>
+      <div class="content">
+        <div class="grid-2">
+          <div class="card">
+            <h3>🚛 1-р Баг: Ачаа тээвэр (Fleet Management)</h3>
+            <ul>
+              <li><strong>Fleet модуль:</strong> 5-р багаас түрээсэлсэн Портер, Бонго зэрэг машинуудыг бүртгэж жолооч томилно.</li>
+              <li><strong>Үйлчилгээ бүртгэх:</strong> "Улаанбаатар доторх хүргэлт", "Аймаг хоорондын тээвэр" гэсэн service product үүсгэнэ.</li>
+              <li><strong>Хэлцэл:</strong> 2, 3, 4-р багуудад хүргэлтийн үйлчилгээ үзүүлэх <strong>Quotation</strong> бичиж явуулах.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>🌾 2-р Баг: Улаанбуудай & Гурилын үйлдвэр</h3>
+            <ul>
+              <li><strong>Бараа:</strong> Анхны үлдэгдэлд Буудай 10,000 кг бүртгэнэ. Ууттай "Дээд гурил" шинээр бүртгэнэ.</li>
+              <li><strong>Нийлүүлэлт:</strong> 3-р багт (Талхны цех) гурилын үнийн санал илгээх.</li>
+              <li><strong>Сүлжээ дэлгүүр (Номин, Carrefour):</strong> Odoo дээр шинэ Partner үүсгэж их хэмжээний гэрээний Invoice бичих.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Odoo ERP Practice Guide</span>
+        <span>Хуудас 6 / 10</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: Group 3 & 4 Instructions -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>6. Багийн даалгавар: 3 & 4-р Бүлэг</h2>
+        <span class="tag">Багуудын роль</span>
+      </div>
+      <div class="content">
+        <div class="grid-2">
+          <div class="card">
+            <h3>🍞 3-р Баг: Талхны үйлдвэрлэл</h3>
+            <ul>
+              <li><strong>Худалдан авалт (Purchase):</strong> 2-р багаас гурил худалдаж авна (Vendor Bill үүсч, Өглөг нэмэгдэнэ).</li>
+              <li><strong>Үйлдвэрлэл (BOM/Жор):</strong> 1 ширхэг талх = 0.5 кг гурил гэж тооцож талх бэлэн болгоно.</li>
+              <li><strong>Борлуулалт:</strong> 4-р багт (Хувийн дэлгүүр) болон бусад дэлгүүрүүдэд шинэхэн талхаа бөөний үнээр нийлүүлж нэхэмжлэх бичнэ.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>🏪 4-р Баг: Хувийн Жижиглэн Дэлгүүр</h3>
+            <ul>
+              <li><strong>Татан авалт:</strong> 3-р багаас талхыг бөөний үнээр (1,800₮) авна. 1-р багаас хүргэлтийн үйлчилгээ авна.</li>
+              <li><strong>Өртөг & Ашиг:</strong> Талхны дээр өөрийн ашгаа нэмж (Жишээ: 2,500₮) POS эсвэл Sales цэсээр жижиглэнгээр зарна.</li>
+              <li><strong>Төлбөр төлөх:</strong> 3-р багийн талхны нэхэмжлэх болон тээврийн хөлсийг өөрийн орлогоос төлнө.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Odoo ERP Practice Guide</span>
+        <span>Хуудас 7 / 10</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: Group 5 Instructions -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>7. Багийн даалгавар: 5-р Бүлэг</h2>
+        <span class="tag">Багуудын роль</span>
+      </div>
+      <div class="content">
+        <div class="grid-2">
+          <div class="card">
+            <h3>🚗 5-р Баг: Машин түрээсийн бизнес (Car Rental)</h3>
+            <ul>
+              <li><strong>Хөрөнгө бүртгэх:</strong> Өөрийн балансад 3 ачааны машин, 2 суудлын жижиг машин хөрөнгөөр бүртгэнэ.</li>
+              <li><strong>Түрээсийн гэрээ:</strong> 1-р багт (Тээвэр) 2 ачааны машиныг сарын 1,500,000₮-өөр түрээслэх гэрээний Quotation явуулна.</li>
+              <li><strong>Тогтмол нэхэмжлэх (Recurring):</strong> Сар бүрийн эхэнд автоматаар түрээсийн нэхэмжлэх бичигдэх загвар үүсгэнэ.</li>
+            </ul>
+          </div>
+          <div class="card" style="background: #fffaf0; border-color: #feebc8;">
+            <h3 style="color: #c05621;">💡 Энэ багийн санхүүгийн онцлог</h3>
+            <p>Энэ баг нь ямар нэг бодит бараа үйлдвэрлэхгүй, <strong>үйлчилгээний түрээсийн авлага (Rental Receivables)</strong> төвлөрүүлж ажилладаг тул дансны авлагаа цаг тухайд нь цуглуулах, тооцоо нийлэх хамгийн өндөр хариуцлагатай баг юм.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Odoo ERP Practice Guide</span>
+        <span>Хуудас 8 / 10</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 9: Step-by-Step Transaction Flow (Reconciliation) -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>8. Хэлцэл хийж, Тооцоо нийлэх (Reconciliation) 4 Алхам</h2>
+        <span class="tag">Практик Алхам</span>
+      </div>
+      <div class="content">
+        <div class="grid-2">
+          <div class="card">
+            <span class="step-badge">1. Санал өгөх & Батлах</span>
+            <h3>Quotation ➜ Sales Order</h3>
+            <p>Борлуулагч тал <strong>Sales ➜ Create Quotation</strong> хийж нөгөө баг руу имэйлээр эсвэл Odoo дээр илгээнэ. Худалдан авагч зөвшөөрвөл "Confirm" дарж <strong>Sales Order</strong> болно.</p>
+          </div>
+          <div class="card">
+            <span class="step-badge">2. Бараа шилжих & Нэхэмжлэх</span>
+            <h3>Delivery ➜ Create Invoice</h3>
+            <p>Агуулахаас барааг гарсан төлөвт шилжүүлж "Create Invoice" дарна. 
+            <br>• Худалдагч талд: <strong>Customer Invoice (Авлага)</strong>
+            <br>• Худалдан авагч талд: <strong>Vendor Bill (Өглөг)</strong> үүснэ.</p>
+          </div>
+          <div class="card">
+            <span class="step-badge">3. Төлбөр бүртгэх</span>
+            <h3>Register Payment</h3>
+            <p>Худалдан авагч баг мөнгөө шилжүүлсний дараа нэхэмжлэх дээр <strong>"Register Payment"</strong> товч дарж Банк/Кассын аль дансаар төлснөө сонгоно.</p>
+          </div>
+          <div class="card card-success" style="border-left: 4px solid #38a169;">
+            <span class="step-badge" style="background: #38a169;">4. Тооцоо нийлэх</span>
+            <h3>Reconcile (Тэгшитгэл)</h3>
+            <p><strong>Accounting ➜ Bank Reconciliation</strong> цэс рүү орж нэхэмжлэхийн дугаар болон банкны орлогыг тулган "Match" хийнэ. Ингэснээр өр 0 болж, тайлан дээр цэвэр ашиг тусна!</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Odoo ERP Practice Guide</span>
+        <span>Хуудас 9 / 10</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 10: Conclusion & Assessment -->
+    <div class="slide">
+      <div class="slide-header">
+        <h2>9. Дүгнэлт & Багуудын Үнэлгээний Шалгуур</h2>
+        <span class="tag">Тэмцээн & Үр дүн</span>
+      </div>
+      <div class="content">
+        <table>
+          <thead>
+            <tr>
+              <th>Үнэлгээний Шалгуур</th>
+              <th>Тайлбар</th>
+              <th>Оноо</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1. Системийн бүрэн тохиргоо</strong></td>
+              <td>Компани, бараа, агуулахын үлдэгдлээ алдаагүй зөв оруулсан эсэх</td>
+              <td>20 оноо</td>
+            </tr>
+            <tr>
+              <td><strong>2. Хэлцлийн гүйцэтгэл</strong></td>
+              <td>Quotation бичиж, бусад багуудтайгаа албан ёсоор гэрээлж борлуулсан байдал</td>
+              <td>25 оноо</td>
+            </tr>
+            <tr>
+              <td><strong>3. Өглөг, Авлагын хяналт</strong></td>
+              <td>Нэхэмжлэхгүйгээр бараа өгөөгүй, өр үүсгээд мартчихаагүй нягт нямбай байдал</td>
+              <td>25 оноо</td>
+            </tr>
+            <tr>
+              <td><strong>4. Тооцоо нийлэлт (Reconciliation)</strong></td>
+              <td>Хичээлийн төгсгөлд банкны үлдэгдэл ба нэхэмжлэхүүд 100% тэгширсэн эсэх</td>
+              <td>30 оноо</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top: 15px; text-align: center; font-weight: bold; color: var(--odoo-purple); font-size: 15px;">
+          🏆 Эцсийн асуулт: Хичээлийн төгсгөлд хамгийн их ашигтай ажиллаж, өргүй үлдсэн БАГ ЯЛАГЧ болно!
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Odoo ERP Practice Guide</span>
+        <span>Хуудас 10 / 10</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="prevSlide()">◀ Өмнөх</button>
+    <span id="slideIndicator">1 / 10</span>
+    <button class="btn" onclick="nextSlide()">Дараах ▶</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const indicator = document.getElementById('slideIndicator');
+
+    function showSlide(index) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (index + slides.length) % slides.length;
+      slides[currentSlide].classList.add('active');
+      indicator.textContent = `${currentSlide + 1} / ${slides.length}`;
+    }
+
+    function nextSlide() { showSlide(currentSlide + 1); }
+    function prevSlide() { showSlide(currentSlide - 1); }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+      if (e.key === 'ArrowLeft') prevSlide();
+    });
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+  </script>
+</body>
+</html>

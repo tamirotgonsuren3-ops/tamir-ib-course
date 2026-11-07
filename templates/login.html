@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-md mx-auto mt-12 bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
+  <h2 class="text-2xl font-bold text-center text-[#714B67] mb-6">EduPath Системд Нэвтрэх</h2>
+  
+  <form action="/login" method="POST" class="space-y-4">
+    <div>
+      <label class="block text-sm font-semibold mb-1">Хэрэглэгчийн нэр</label>
+      <input type="text" name="username" required class="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-[#714B67] outline-none">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-1">Нууц үг</label>
+      <input type="password" name="password" required class="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-[#714B67] outline-none">
+    </div>
+    <button type="submit" class="w-full py-2.5 bg-[#714B67] text-white font-semibold rounded-xl hover:bg-[#5b3c53] transition">Нэвтрэх</button>
+  </form>
+
+  <hr class="my-6">
+
+  <h3 class="text-sm font-bold text-slate-500 mb-3 text-center">Шинээр бүртгүүлэх</h3>
+  <form action="/register" method="POST" class="space-y-3">
+    <input type="text" name="username" placeholder="Шинэ хэрэглэгчийн нэр" required class="w-full px-3 py-2 border rounded-lg text-sm">
+    <input type="password" name="password" placeholder="Нууц үг" required class="w-full px-3 py-2 border rounded-lg text-sm">
+    <select name="role" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+      <option value="student">Сурагч (Student)</option>
+      <option value="teacher">Багш (Teacher)</option>
+    </select>
+    <button type="submit" class="w-full py-2 bg-slate-800 text-white text-sm font-semibold rounded-lg hover:bg-slate-700">Бүртгүүлэх</button>
+  </form>
+</div>
+{% endblock %}

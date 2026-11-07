@@ -1,0 +1,14 @@
+edupath_ib/
+├── app.py                  # Бүх backend логик, Gemini дуудлага, DB
+├── requirements.txt        # Шаардлагатай сангууд
+├── uploads/
+│   ├── lessons/            # Багшийн хуулсан lesson.html файлууд
+│   └── quiz_images/        # Квиз үүсгэхэд ашигласан зургууд
+└── templates/
+    ├── base.html           # Дизайн загвар (Tailwind CSS)
+    ├── login.html          # Нэвтрэх & Бүртгүүлэх
+    ├── teacher.html        # Багшийн удирдлагын хэсэг
+    ├── student.html        # Сурагчийн хичээл & квизийн жагсаалт
+    ├── lesson_view.html    # Слайд үзэх дэлгэц
+    ├── take_quiz.html      # Шалгалт өгөх хуудас
+    └── result.html         # IB A, B, C, D үнэлгээний дэлгэрэнгүй тайлан

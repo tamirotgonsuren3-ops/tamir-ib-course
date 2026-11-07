@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-sm border">
+  <div class="border-b pb-4 mb-6">
+    <span class="text-xs bg-purple-100 text-[#714B67] font-bold px-2 py-1 rounded">IB MYP/DP Үнэлгээ</span>
+    <h1 class="text-2xl font-bold mt-2">{{ quiz.title }}</h1>
+  </div>
+
+  {% if quiz.image_path %}
+    <div class="mb-6 text-center">
+      <img src="/quiz/image/{{ quiz.image_path }}" class="max-h-72 mx-auto rounded-xl border shadow-sm" alt="Quiz Diagram">
+    </div>
+  {% endif %}
+
+  <form action="/quiz/submit/{{ quiz.id }}" method="POST" class="space-y-8">
+    {% for q in quiz_data.questions %}
+      <div class="p-5 bg-slate-50 rounded-xl border border-slate-200">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-xs font-bold text-slate-500">Асуулт {{ q.id }}</span>
+          <span class="text-xs bg-teal-100 text-teal-800 font-semibold px-2 py-0.5 rounded">{{ q.target_criteria }}</span>
+        </div>
+        <p class="font-medium text-slate-800 mb-4">{{ q.question_text }}</p>
+
+        {% if q.question_type == 'multiple_choice' %}
+          <div class="space-y-2">
+            {% for opt in q.options %}
+              <label class="flex items-center space-x-3 text-sm p-2 rounded-lg bg-white border hover:bg-slate-100 cursor-pointer">
+                <input type="radio" name="q_{{ q.id }}" value="{{ loop.index0 }}" required class="text-[#714B67]">
+                <span>{{ opt }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div>
+            <textarea name="q_{{ q.id }}" rows="4" required placeholder="Хариултаа тайлбарлан дэлгэрэнгүй бичнэ үү (IB шалгуурын дагуу үндэслэлтэй хариулах)..." class="w-full p-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#714B67] bg-white"></textarea>
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    <button type="submit" class="w-full py-3 bg-[#714B67] text-white font-bold rounded-xl hover:bg-[#583950] transition shadow-md">
+      Шалгалтыг Илгээх & Gemini-ээр IB Дүнгээ Гаргах 🚀
+    </button>
+  </form>
+</div>
+{% endblock %}
