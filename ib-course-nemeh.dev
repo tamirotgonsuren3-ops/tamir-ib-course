@@ -1,0 +1,14 @@
+Хичээлийн улирал нэмж хасдаг болго, by default Монголын хичээлийн жил 4 улиралтай байна.
+
+Дараах бүртгэлийн системүүд заавал байна:
+
+1. Teacher registration
+2. Student registration
+3. Lesson registration (has many ib_unit_plans, has_many teachers)
+4. ib_unit_plan registration (belongs to lessons)
+5. Grades (by default 1-12 дугаар ангиудтай, дотороо a b c гэх мэт бүлэгтэй. Жишээ нь 12а анги, 11b анги гэх мэт)
+6. academic_term registration (by default Монголын хичээлийн жил 4 улиралтай байна)
+calendar-аас улирал эхлэх дуусах өдөрийг сонгоно
+
+7. Lesson_timetable registration
+Хичээлийн хуваарь бүртгэлийг календар дээр дарж байгаад бүртгэдэг байна. Жишээ нь Мягмар гаригт өглөө 1-р цаг дээр 9b ангид Математикийн хичээлийг Үрэлмаа багш орно гэх мэт. 
