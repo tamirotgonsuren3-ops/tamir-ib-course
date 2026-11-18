@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div>
+    <a href="/teacher/setup/lessons" class="text-sm text-[#714B67] hover:underline">&larr; Хичээлүүд</a>
+    <h1 class="text-2xl font-black mt-1">{{ lesson.title }}</h1>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="bg-white p-5 rounded-2xl border">
+      <h2 class="font-bold text-[#714B67] mb-3">IB Unit Plans</h2>
+      {% for p in unit_plans %}
+        <div class="border-b py-2 text-sm">
+          <div class="font-semibold">{{ p.unit_code or 'Unit' }} — {{ p.title }}</div>
+          <div class="text-xs text-slate-500">{{ p.atl_skills or 'ATL хоосон' }} · max {{ p.max_score }}</div>
+        </div>
+      {% else %}<p class="text-sm text-slate-500">Unit plan байхгүй байна.</p>{% endfor %}
+      <a href="/teacher/setup/unit-plans" class="inline-block mt-3 text-sm text-teal-700 hover:underline">Unit plan нэмэх &rarr;</a>
+    </div>
+    <div class="bg-white p-5 rounded-2xl border">
+      <h2 class="font-bold text-[#714B67] mb-3">Хичээлийн өдрүүд</h2>
+      {% for s in sessions %}
+        <div class="border-b py-2 flex justify-between text-sm">
+          <a href="/teacher/sessions/{{ s.id }}" class="text-[#714B67] hover:underline">{{ s.date }} — {{ s.term_name }}</a>
+          <span class="text-xs text-slate-500">{{ s.grade_name }}</span>
+        </div>
+      {% else %}<p class="text-sm text-slate-500">Хичээлийн өдөр бүртгэгдээгүй.</p>{% endfor %}
+      <a href="/teacher/timetable" class="inline-block mt-3 text-sm text-teal-700 hover:underline">Хуваарь үүсгэх &rarr;</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div>
+    <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
+    <h1 class="text-2xl font-black mt-1">IB Unit Plan бүртгэх</h1>
+    <p class="text-sm text-slate-500">Unit plan нь хичээлд хамаарна. Үнэлгээ хийхэд A-D шалгуур, ATL чадварыг тодорхойлно.</p>
+  </div>
+  {% if request.query_params.get('created') %}<div class="text-sm text-emerald-600">Unit plan нэмэгдлээ.</div>{% endif %}
+
+  <form method="POST" action="/teacher/setup/unit-plans" class="bg-white p-5 rounded-2xl border grid md:grid-cols-3 gap-3">
+    <div>
+      <label class="block text-xs text-slate-500 mb-1">Хичээл</label>
+      <select name="lesson_id" required class="w-full px-3 py-2 border rounded-lg">
+        {% for l in lessons %}<option value="{{ l.id }}">{{ l.title }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label class="block text-xs text-slate-500 mb-1">Unit нэр</label><input name="title" required placeholder="Unit 1: Data" class="w-full px-3 py-2 border rounded-lg"></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Код</label><input name="unit_code" placeholder="U1" class="w-full px-3 py-2 border rounded-lg"></div>
+    <div class="md:col-span-2"><label class="block text-xs text-slate-500 mb-1">Тайлбар</label><input name="description" class="w-full px-3 py-2 border rounded-lg"></div>
+    <div><label class="block text-xs text-slate-500 mb-1">ATL чадвар</label><input name="atl_skills" placeholder="self-management" class="w-full px-3 py-2 border rounded-lg"></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Дээд оноо</label><input name="max_score" value="8" class="w-full px-3 py-2 border rounded-lg"></div>
+    <button class="bg-[#714B67] text-white px-5 py-2 rounded-lg text-sm md:col-span-3">Бүртгэх</button>
+  </form>
+
+  <div class="bg-white rounded-2xl border overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+        <tr><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Unit</th><th class="p-3 text-left">ATL</th><th class="p-3 text-left">Дээд оноо</th><th class="p-3"></th></tr>
+      </thead>
+      <tbody>
+        {% for p in plans %}
+        <tr class="border-t">
+          <td class="p-3">{{ p.lesson_title }}</td>
+          <td class="p-3 font-semibold">{{ p.unit_code or 'Unit' }} — {{ p.title }}</td>
+          <td class="p-3">{{ p.atl_skills or '—' }}</td>
+          <td class="p-3">{{ p.max_score }}</td>
+          <td class="p-3 text-right">
+            <form method="POST" action="/teacher/setup/unit-plans/{{ p.id }}/delete">
+              <button class="text-rose-600 hover:underline text-xs">Хасах</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div>
+    <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
+    <h1 class="text-2xl font-black mt-1">Ирцийн оноо тохируулах</h1>
+    <p class="text-sm text-slate-500">Нийт оноог улирлын 7 хоногт хуваана. Ирц нь ATL-ийн self-management үнэлгээ болно.</p>
+  </div>
+  {% if request.query_params.get('saved') %}<div class="text-sm text-emerald-600">Хадгалагдлаа.</div>{% endif %}
+
+  <form method="GET" action="/teacher/setup/attendance-config" class="bg-white p-4 rounded-2xl border flex gap-3 items-end">
+    <div><label class="block text-xs text-slate-500 mb-1">Улирал</label><select name="term_id" class="px-3 py-2 border rounded-lg">{% for t in terms %}<option value="{{ t.id }}" {% if t.id == selected_term %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Анги</label><select name="grade_id" class="px-3 py-2 border rounded-lg">{% for g in grades %}<option value="{{ g.id }}" {% if g.id == selected_grade %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></div>
+    <button class="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm">Харуулах</button>
+  </form>
+
+  <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl text-sm">
+    <b>Тооцоо:</b> {{ preview.total_points }} оноо &divide; {{ preview.weeks }} 7 хоног =
+    <b>{{ preview.per_day }} оноо / өдөр</b>, IB хөрвүүлбэл <b>{{ preview.ib_per_day }} / 8</b>.
+    ATL чадвар: {{ preview.atl_skill }}.
+  </div>
+
+  <form method="POST" action="/teacher/setup/attendance-config" class="bg-white p-5 rounded-2xl border grid md:grid-cols-5 gap-3 items-end">
+    <input type="hidden" name="term_id" value="{{ selected_term }}">
+    <input type="hidden" name="grade_id" value="{{ selected_grade }}">
+    <div><label class="block text-xs text-slate-500 mb-1">Хичээл</label><select name="lesson_id" class="w-full px-2 py-2 border rounded-lg"><option value="0">Бүх хичээлд</option>{% for l in lessons %}<option value="{{ l.id }}">{{ l.title }}</option>{% endfor %}</select></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Нийт оноо</label><input name="total_points" value="30" class="w-full px-2 py-2 border rounded-lg"></div>
+    <div><label class="block text-xs text-slate-500 mb-1">ATL чадвар</label><input name="atl_skill" value="self-management" class="w-full px-2 py-2 border rounded-lg"></div>
+    <button class="bg-[#714B67] text-white px-4 py-2 rounded-lg text-sm">Хадгалах</button>
+  </form>
+
+  <div class="bg-white rounded-2xl border overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Нийт оноо</th><th class="p-3 text-left">7 хоног</th><th class="p-3 text-left">Өдөр тутмын оноо</th><th class="p-3 text-left">IB / өдөр</th><th class="p-3 text-left">ATL</th><th class="p-3"></th></tr></thead>
+      <tbody>
+        {% for c in configs %}
+        <tr class="border-t">
+          <td class="p-3 font-semibold">{{ c.lesson_title or 'Бүх хичээл' }}</td>
+          <td class="p-3">{{ c.total_points }}</td>
+          <td class="p-3">{{ c.weeks }}</td>
+          <td class="p-3">{{ c.per_day }}</td>
+          <td class="p-3">{{ c.ib_per_day }}</td>
+          <td class="p-3">{{ c.atl_skill }}</td>
+          <td class="p-3 text-right">
+            <form method="POST" action="/teacher/setup/attendance-config/{{ c.id }}/delete">
+              <input type="hidden" name="term_id" value="{{ selected_term }}">
+              <input type="hidden" name="grade_id" value="{{ selected_grade }}">
+              <button class="text-rose-600 hover:underline text-xs">Хасах</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

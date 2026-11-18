@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <h1 class="text-2xl font-black">Улирлын дүн</h1>
+  <form method="GET" action="/student/term-grades" class="bg-white p-4 rounded-2xl border flex gap-3 items-end">
+    <div><label class="block text-xs text-slate-500 mb-1">Улирал</label><select name="term_id" class="px-3 py-2 border rounded-lg">{% for t in terms %}<option value="{{ t.id }}" {% if t.id == selected_term %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+    <button class="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm">Харуулах</button>
+  </form>
+  <div class="grid md:grid-cols-2 gap-4">
+    {% for r in rows %}
+    <div class="bg-white p-5 rounded-2xl border">
+      <div class="font-bold text-[#714B67]">{{ r.title }}</div>
+      <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
+        <div class="bg-slate-50 p-2 rounded">Ирц / ATL<br><b>{{ r.attendance_ib }} / 8</b></div>
+        <div class="bg-slate-50 p-2 rounded">A-D шалгуур<br><b>{{ r.criteria_ib }} / 8</b></div>
+        <div class="bg-slate-50 p-2 rounded">Data analysis<br><b>{{ r.da_ib }} / 8</b></div>
+        <div class="bg-indigo-50 p-2 rounded">Нийт IB<br><b>{{ r.final_ib }} / 8</b></div>
+      </div>
+      <div class="mt-3 text-right text-lg font-black text-[#714B67]">{{ r.final_100 }} / 100</div>
+    </div>
+    {% else %}<div class="bg-white p-8 rounded-2xl border text-center text-slate-500">Дүн байхгүй байна.</div>{% endfor %}
+  </div>
+</div>
+{% endblock %}

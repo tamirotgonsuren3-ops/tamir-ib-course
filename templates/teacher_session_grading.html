@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div>
+    <a href="/teacher/sessions?term_id={{ session.term_id }}" class="text-sm text-[#714B67] hover:underline">&larr; Хичээлийн өдрүүд</a>
+    <h1 class="text-2xl font-black mt-1">{{ session.date }} — {{ session.lesson_title }}</h1>
+    <p class="text-sm text-slate-500">{{ session.term_name }} · {{ session.grade_name }} · {{ session.topic or 'Сэдэв хоосон' }}</p>
+  </div>
+  {% if request.query_params.get('saved') %}<div class="text-sm text-emerald-600">Оноо хадгалагдлаа.</div>{% endif %}
+  <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-xl text-sm">
+    Ирцийн өдөр тутмын оноо: <b>{{ setting.per_day }}</b> (нийт {{ setting.total_points }} &divide; {{ setting.weeks }} 7 хоног).
+    Тасалсан бол 0 оноо. A-D шалгуур тус бүр 0–2. Сахилгын хасалт сөрөг тоогоор бичнэ.
+  </div>
+
+  <form method="POST" action="/teacher/sessions/{{ session.id }}" class="bg-white p-5 rounded-2xl border">
+    {% if unit_plans %}
+    <div class="mb-4">
+      <label class="block text-xs font-semibold text-slate-500 mb-1">Unit plan сонгох</label>
+      <select name="unit_plan_id" class="px-3 py-2 border rounded-lg">
+        <option value="0">— сонгоогүй —</option>
+        {% for p in unit_plans %}<option value="{{ p.id }}">{{ p.unit_code or 'Unit' }} — {{ p.title }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+          <tr>
+            <th class="p-2 text-left">Сурагч</th><th class="p-2">Ирц</th><th class="p-2">Оноо</th>
+            {% for c in criteria %}<th class="p-2">{{ c }}</th>{% endfor %}
+            <th class="p-2">Хасалт</th><th class="p-2 text-left">Тэмдэглэл</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in students %}
+          <tr class="border-t">
+            <td class="p-2">
+              <div class="font-semibold">{{ s.name }} {{ s.surname }}</div>
+              <div class="text-xs text-slate-400">{{ s.student_code or s.username }}</div>
+            </td>
+            <td class="p-2">
+              <select name="status_{{ s.id }}" class="px-2 py-1 border rounded">
+                <option value="present" {% if s.mark.get('status') == 'present' %}selected{% endif %}>Ирсэн</option>
+                <option value="late" {% if s.mark.get('status') == 'late' %}selected{% endif %}>Хоцорсон</option>
+                <option value="absent" {% if s.mark.get('status') == 'absent' %}selected{% endif %}>Тасалсан</option>
+              </select>
+            </td>
+            <td class="p-2"><input type="number" step="0.5" name="points_{{ s.id }}" value="{{ s.mark.get('points', setting.per_day) }}" class="w-16 px-2 py-1 border rounded text-center"></td>
+            {% for c in criteria %}<td class="p-2"><input type="number" min="0" max="2" step="0.5" name="c_{{ c }}_{{ s.id }}" value="{{ s.criteria.get(c) }}" placeholder="0" class="w-14 px-2 py-1 border rounded text-center"></td>{% endfor %}
+            <td class="p-2"><input type="number" step="0.5" max="0" name="conduct_{{ s.id }}" value="{{ s.conduct }}" class="w-16 px-2 py-1 border rounded text-center"></td>
+            <td class="p-2"><input name="note_{{ s.id }}" value="{{ s.mark.get('note', '') }}" class="w-full px-2 py-1 border rounded" placeholder="..."></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button class="mt-4 bg-[#714B67] text-white px-5 py-2 rounded-lg text-sm">Оноо хадгалах</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
+      <h1 class="text-2xl font-black mt-1">Ангиуд (Grades)</h1>
+    </div>
+    {% if request.query_params.get('created') %}<span class="text-sm text-emerald-600">Анги нэмэгдлээ.</span>{% endif %}
+    {% if request.query_params.get('deleted') %}<span class="text-sm text-emerald-600">Анги хасагдлаа.</span>{% endif %}
+  </div>
+  {% if request.query_params.get('error') %}<div class="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">Ангийн нэр буруу эсвэл давхардсан байна (жишээ: 10a).</div>{% endif %}
+
+  <form method="POST" action="/teacher/setup/grades" class="bg-white p-4 rounded-2xl border flex flex-wrap gap-3 items-end">
+    <div>
+      <label class="block text-xs font-semibold text-slate-500 mb-1">Ангийн нэр</label>
+      <input name="name" placeholder="10a" required class="px-3 py-2 border rounded-lg">
+    </div>
+    <button class="bg-[#714B67] text-white px-4 py-2 rounded-lg text-sm">Анги нэмэх</button>
+  </form>
+
+  <div class="bg-white rounded-2xl border overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+        <tr><th class="p-3 text-left">Анги</th><th class="p-3 text-left">Түвшин</th><th class="p-3 text-left">Бүлэг</th><th class="p-3 text-left">Сурагч</th><th class="p-3"></th></tr>
+      </thead>
+      <tbody>
+        {% for g in grades %}
+        <tr class="border-t">
+          <td class="p-3 font-bold">{{ g.name }}</td>
+          <td class="p-3">{{ g.level }}</td>
+          <td class="p-3">{{ g.section }}</td>
+          <td class="p-3">{{ g.student_count }}</td>
+          <td class="p-3 text-right">
+            <form method="POST" action="/teacher/setup/grades/{{ g.id }}/delete" onsubmit="return confirm('{{ g.name }} ангийг хасах уу?')">
+              <button class="text-rose-600 hover:underline text-xs">Хасах</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

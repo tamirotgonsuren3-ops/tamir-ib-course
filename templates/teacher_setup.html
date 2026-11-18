@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div>
+    <a href="/teacher" class="text-sm text-[#714B67] hover:underline">&larr; Самбар</a>
+    <h1 class="text-2xl font-black text-slate-800 mt-1">IB Үнэлгээний тохиргоо</h1>
+    <p class="text-sm text-slate-500">Анги, улирал, хичээл,.unit plan, хуваарь, ирц, даалгавар, улирлын дүн.</p>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+    {% for label, key in [('Анги','grades'), ('Улирал','terms'), ('Хичээл','lessons'), ('Unit plan','unit_plans'), ('Хуваарь','timetable'), ('Хичээлийн өдөр','sessions'), ('Data analysis','assignments')] %}
+      <div class="bg-white rounded-xl border p-3">
+        <div class="text-2xl font-black text-[#714B67]">{{ counts[key] }}</div>
+        <div class="text-xs text-slate-500">{{ label }}</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% set cards = [
+      ('/teacher/setup/grades', '🏫', 'Ангиуд', '1-12 анги, a/b/c бүлэг'),
+      ('/teacher/setup/terms', '📅', 'Хичээлийн улирал', 'Нэмэх, хасах, огноо сонгох'),
+      ('/teacher/setup/lessons', '📚', 'Хичээл бүртгэх', 'Багш, анги, unit plan'),
+      ('/teacher/setup/unit-plans', '🧩', 'IB Unit Plan', 'Хичээлд хамааруулан бүртгэх'),
+      ('/teacher/timetable', '🗓️', 'Хичээлийн хуваарь', 'Календар дээр долоо хоног/цаг'),
+      ('/teacher/setup/attendance-config', '✅', 'Ирцийн оноо', 'Улиралд оноох нийт оноо, ATL'),
+      ('/teacher/sessions', '🧾', 'Хичээлийн өдөр', 'Ирц, A-D шалгуур, сахилга'),
+      ('/teacher/data-analysis', '📊', 'Data analysis даалгавар', 'CSV жишээ, Word тайлан, AI үнэлгээ'),
+      ('/teacher/term-grades', '🏆', 'Улирлын дүн', '8 ба 100 оноо, багш засах')
+    ] %}
+    {% for href, icon, title, desc in cards %}
+      <a href="{{ href }}" class="bg-white p-5 rounded-2xl border shadow-sm hover:border-[#714B67] transition">
+        <div class="text-2xl">{{ icon }}</div>
+        <div class="font-bold mt-2">{{ title }}</div>
+        <div class="text-xs text-slate-500 mt-1">{{ desc }}</div>
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

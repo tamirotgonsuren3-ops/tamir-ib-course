@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <h1 class="text-2xl font-black">Data analysis даалгавар</h1>
+  {% for a in assignments %}
+  <div class="bg-white p-5 rounded-2xl border flex items-center justify-between">
+    <div>
+      <div class="font-bold">{{ a.title }}</div>
+      <div class="text-xs text-slate-500 mt-1">{{ a.term_name }} · {{ a.lesson_title }} · дээд оноо {{ a.max_score }}{% if a.unit_title %} · {{ a.unit_title }}{% endif %}</div>
+      <div class="text-xs mt-1">
+        {% if a.submission_status == 'graded' %}<span class="text-emerald-600">Шалгагдсан: {{ a.score }} / {{ a.max_score }}</span>
+        {% elif a.submission_status %}<span class="text-amber-600">Илгээсэн — шалгагдаж байна</span>{% else %}<span class="text-slate-400">Одоогоор илгээгээгүй</span>{% endif %}
+      </div>
+    </div>
+    <a href="/student/data-analysis/{{ a.id }}" class="bg-[#714B67] text-white px-4 py-2 rounded-lg text-sm">Нээх</a>
+  </div>
+  {% else %}
+  <div class="bg-white p-8 rounded-2xl border text-center text-slate-500">Таны ангид даалгавар байхгүй байна.</div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div>
+    <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
+    <h1 class="text-2xl font-black mt-1">Улирлын дүн — багш засах</h1>
+    <p class="text-xs text-slate-500">Тооцоо: A-D {{ (weights.criteria * 100) | int }}% + ирц/ATL {{ (weights.attendance * 100) | int }}% + data analysis {{ (weights.data_analysis * 100) | int }}% + сахилгын хасалт. Хоосон үлдээвэл тооцсон дүн хэвээр үлдэнэ.</p>
+  </div>
+  {% if request.query_params.get('saved') is not none %}<div class="text-sm text-emerald-600">{{ request.query_params.get('saved') }} дүн хадгалагдлаа.</div>{% endif %}
+
+  <form method="GET" action="/teacher/term-grades" class="bg-white p-4 rounded-2xl border flex gap-3 items-end">
+    <div><label class="block text-xs text-slate-500 mb-1">Улирал</label><select name="term_id" class="px-3 py-2 border rounded-lg">{% for t in terms %}<option value="{{ t.id }}" {% if t.id == selected_term %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Анги</label><select name="grade_id" class="px-3 py-2 border rounded-lg">{% for g in grades %}<option value="{{ g.id }}" {% if g.id == selected_grade %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Хичээл</label><select name="lesson_id" class="px-3 py-2 border rounded-lg">{% for l in lessons %}<option value="{{ l.id }}" {% if l.id == selected_lesson %}selected{% endif %}>{{ l.title }}</option>{% endfor %}</select></div>
+    <button class="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm">Харуулах</button>
+  </form>
+
+  <form method="POST" action="/teacher/term-grades" class="bg-white rounded-2xl border overflow-hidden">
+    <input type="hidden" name="term_id" value="{{ selected_term }}">
+    <input type="hidden" name="grade_id" value="{{ selected_grade }}">
+    <input type="hidden" name="lesson_id" value="{{ selected_lesson }}">
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500 uppercase">
+          <tr>
+            <th class="p-2 text-left">Сурагч</th><th class="p-2">Өдөр</th>
+            <th class="p-2">Ирц {{ 'ATL' }}</th><th class="p-2">A-D IB</th><th class="p-2">Data analysis</th><th class="p-2">Хасалт</th>
+            <th class="p-2">Тооцсон 100</th><th class="p-2">IB оновчилсон</th><th class="p-2">100 оноо</th><th class="p-2">Тайлбар</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in rows %}
+          <tr class="border-t">
+            <td class="p-2 font-semibold">{{ s.name }} {{ s.surname }}<div class="text-slate-400">{{ s.student_code or s.username }}</div></td>
+            <td class="p-2 text-center">{{ s.sessions }}</td>
+            <td class="p-2 text-center">{{ s.attendance_points }}/{{ s.attendance_max }}<div class="text-slate-400">{{ s.attendance_ib }} IB</div></td>
+            <td class="p-2 text-center">{{ s.criteria_ib }} / 8</td>
+            <td class="p-2 text-center">{{ s.da_score }}/{{ s.da_max }}<div class="text-slate-400">{{ s.da_ib }} IB</div></td>
+            <td class="p-2 text-center">{{ s.conduct_points }}</td>
+            <td class="p-2 text-center">{{ s.computed_100 }}</td>
+            <td class="p-2 text-center"><input name="ib_{{ s.id }}" value="{{ s.final_ib }}" class="w-14 px-1 py-1 border rounded text-center"></td>
+            <td class="p-2 text-center"><input name="final_{{ s.id }}" value="{{ s.final_100 }}" class="w-16 px-1 py-1 border rounded text-center {% if s.overridden %}bg-amber-50{% endif %}"></td>
+            <td class="p-2"><input name="note_{{ s.id }}" value="{{ s.override_note }}" class="w-24 px-1 py-1 border rounded"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="p-4 border-t"><button class="bg-[#714B67] text-white px-5 py-2 rounded-lg text-sm">Дүн хадгалах</button></div>
+  </form>
+</div>
+{% endblock %}

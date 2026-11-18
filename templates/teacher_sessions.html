@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div>
+    <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
+    <h1 class="text-2xl font-black mt-1">Хичээлийн өдөр / Ирц ба шалгуур</h1>
+  </div>
+  {% if request.query_params.get('generated') is not none %}<div class="text-sm text-emerald-600">{{ request.query_params.get('generated') }} шинэ хичээлийн өдөр үүслээ.</div>{% endif %}
+  {% if request.query_params.get('created') %}<div class="text-sm text-emerald-600">Хичээлийн өдөр нэмэгдлээ.</div>{% endif %}
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <form method="POST" action="/teacher/timetable/generate" class="bg-white p-5 rounded-2xl border">
+      <h2 class="font-bold mb-3">Хуваарьаас үүсгэх</h2>
+      <select name="term_id" class="w-full px-3 py-2 border rounded-lg mb-3">{% for t in terms %}<option value="{{ t.id }}" {% if t.id == selected_term %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
+      <button class="bg-teal-700 text-white px-4 py-2 rounded-lg text-sm">Өдрүүд үүсгэх</button>
+    </form>
+    <form method="POST" action="/teacher/sessions" class="bg-white p-5 rounded-2xl border grid grid-cols-2 gap-3">
+      <h2 class="font-bold col-span-2">Гараар нэмэх</h2>
+      <select name="term_id" class="px-3 py-2 border rounded-lg">{% for t in terms %}<option value="{{ t.id }}" {% if t.id == selected_term %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
+      <select name="lesson_id" class="px-3 py-2 border rounded-lg">{% for l in lessons %}<option value="{{ l.id }}" {% if l.id == selected_lesson %}selected{% endif %}>{{ l.title }}</option>{% endfor %}</select>
+      <select name="grade_id" class="px-3 py-2 border rounded-lg">{% for g in grades %}<option value="{{ g.id }}" {% if g.id == selected_grade %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select>
+      <input type="date" name="date" required class="px-3 py-2 border rounded-lg">
+      <input name="topic" placeholder="Сэдэв" class="px-3 py-2 border rounded-lg col-span-2">
+      <button class="bg-[#714B67] text-white px-4 py-2 rounded-lg text-sm col-span-2">Нэмэх</button>
+    </form>
+  </div>
+
+  <form method="GET" action="/teacher/sessions" class="bg-white p-4 rounded-2xl border flex gap-3 items-end">
+    <div><label class="block text-xs text-slate-500 mb-1">Улирал</label><select name="term_id" class="px-3 py-2 border rounded-lg">{% for t in terms %}<option value="{{ t.id }}" {% if t.id == selected_term %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Хичээл</label><select name="lesson_id" class="px-3 py-2 border rounded-lg"><option value="0">Бүх</option>{% for l in lessons %}<option value="{{ l.id }}" {% if l.id == selected_lesson %}selected{% endif %}>{{ l.title }}</option>{% endfor %}</select></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Анги</label><select name="grade_id" class="px-3 py-2 border rounded-lg"><option value="0">Бүх</option>{% for g in grades %}<option value="{{ g.id }}" {% if g.id == selected_grade %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></div>
+    <button class="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm">Шүүх</button>
+  </form>
+
+  <div class="bg-white rounded-2xl border overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="p-3 text-left">Огноо</th><th class="p-3 text-left">Улирал</th><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Анги</th><th class="p-3 text-left">Сэдэв</th><th class="p-3"></th></tr></thead>
+      <tbody>
+        {% for s in sessions %}
+        <tr class="border-t">
+          <td class="p-3 font-semibold"><a href="/teacher/sessions/{{ s.id }}" class="text-[#714B67] hover:underline">{{ s.date }}</a></td>
+          <td class="p-3">{{ s.term_name }}</td><td class="p-3">{{ s.lesson_title }}</td><td class="p-3">{{ s.grade_name }}</td><td class="p-3">{{ s.topic or '—' }}</td>
+          <td class="p-3 text-right">
+            <form method="POST" action="/teacher/sessions/{{ s.id }}/delete">
+              <input type="hidden" name="term_id" value="{{ selected_term }}">
+              <button class="text-rose-600 hover:underline text-xs">Хасах</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
