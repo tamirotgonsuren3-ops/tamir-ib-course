@@ -7,6 +7,7 @@
       <h1 class="text-2xl font-black mt-1">Ангиуд (Grades)</h1>
     </div>
     {% if request.query_params.get('created') %}<span class="text-sm text-emerald-600">Анги нэмэгдлээ.</span>{% endif %}
+    {% if request.query_params.get('updated') %}<span class="text-sm text-emerald-600">Анги шинэчлэгдлээ.</span>{% endif %}
     {% if request.query_params.get('deleted') %}<span class="text-sm text-emerald-600">Анги хасагдлаа.</span>{% endif %}
   </div>
   {% if request.query_params.get('error') %}<div class="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">Ангийн нэр буруу эсвэл давхардсан байна (жишээ: 10a).</div>{% endif %}
@@ -19,22 +20,33 @@
     <button class="bg-[#714B67] text-white px-4 py-2 rounded-lg text-sm">Анги нэмэх</button>
   </form>
 
-  <div class="bg-white rounded-2xl border overflow-hidden">
+  <div class="bg-white rounded-2xl border overflow-x-auto">
     <table class="w-full text-sm">
       <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
-        <tr><th class="p-3 text-left">Анги</th><th class="p-3 text-left">Түвшин</th><th class="p-3 text-left">Бүлэг</th><th class="p-3 text-left">Сурагч</th><th class="p-3"></th></tr>
+        <tr><th class="p-3 text-left">Анги</th><th class="p-3 text-left">Түвшин</th><th class="p-3 text-left">Бүлэг</th><th class="p-3 text-left">Сурагч</th><th class="p-3 text-right">Үйлдэл</th></tr>
       </thead>
       <tbody>
         {% for g in grades %}
         <tr class="border-t">
-          <td class="p-3 font-bold">{{ g.name }}</td>
+          <td class="p-3 font-bold">
+            <span class="inline-view-only">{{ g.name }}</span>
+            <span class="inline-edit-only"><input form="grade-edit-{{ g.id }}" name="name" value="{{ g.name }}" placeholder="10a" class="px-2 py-1 border rounded w-20"></span>
+          </td>
           <td class="p-3">{{ g.level }}</td>
           <td class="p-3">{{ g.section }}</td>
           <td class="p-3">{{ g.student_count }}</td>
-          <td class="p-3 text-right">
-            <form method="POST" action="/teacher/setup/grades/{{ g.id }}/delete" onsubmit="return confirm('{{ g.name }} ангийг хасах уу?')">
-              <button class="text-rose-600 hover:underline text-xs">Хасах</button>
-            </form>
+          <td class="p-3 text-right whitespace-nowrap">
+            <form id="grade-edit-{{ g.id }}" method="POST" action="/teacher/setup/grades/{{ g.id }}/edit" class="hidden"></form>
+            <span class="inline-view-only">
+              <button type="button" onclick="editRow(this)" class="text-[#714B67] hover:underline text-xs">Засах</button>
+              <form method="POST" action="/teacher/setup/grades/{{ g.id }}/delete" onsubmit="return confirm('{{ g.name }} ангийг хасах уу?')" class="inline">
+                <button class="text-rose-600 hover:underline text-xs ml-2">Хасах</button>
+              </form>
+            </span>
+            <span class="inline-edit-only">
+              <button type="submit" form="grade-edit-{{ g.id }}" class="text-emerald-700 hover:underline text-xs">Хадгалах</button>
+              <button type="button" onclick="cancelEdit(this)" class="text-slate-500 hover:underline text-xs ml-2">Цуцлах</button>
+            </span>
           </td>
         </tr>
         {% endfor %}

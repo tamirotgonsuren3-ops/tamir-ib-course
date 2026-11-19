@@ -4,9 +4,11 @@
   <div>
     <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
     <h1 class="text-2xl font-black mt-1">Ирцийн оноо тохируулах</h1>
-    <p class="text-sm text-slate-500">Нийт оноог улирлын 7 хоногт хуваана. Ирц нь ATL-ийн self-management үнэлгээ болно.</p>
+    <p class="text-sm text-slate-500">Нийт оноог улирлын 7 хоногт хуваана. Ирц нь ATL-ийн self-management үнэлгээ болно. Мөрийн <b>Засах</b> товчоор оноо, ATL-ыг өөрчилнө.</p>
   </div>
   {% if request.query_params.get('saved') %}<div class="text-sm text-emerald-600">Хадгалагдлаа.</div>{% endif %}
+  {% if request.query_params.get('updated') %}<div class="text-sm text-emerald-600">Шинэчлэгдлээ.</div>{% endif %}
+  {% if request.query_params.get('error') %}<div class="text-sm text-rose-600">Тохиргоо давхардсан эсвэл буруу байна.</div>{% endif %}
 
   <form method="GET" action="/teacher/setup/attendance-config" class="bg-white p-4 rounded-2xl border flex gap-3 items-end">
     <div><label class="block text-xs text-slate-500 mb-1">Улирал</label><select name="term_id" class="px-3 py-2 border rounded-lg">{% for t in terms %}<option value="{{ t.id }}" {% if t.id == selected_term %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
@@ -29,24 +31,49 @@
     <button class="bg-[#714B67] text-white px-4 py-2 rounded-lg text-sm">Хадгалах</button>
   </form>
 
-  <div class="bg-white rounded-2xl border overflow-hidden">
+  <div class="bg-white rounded-2xl border overflow-x-auto">
     <table class="w-full text-sm">
-      <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Нийт оноо</th><th class="p-3 text-left">7 хоног</th><th class="p-3 text-left">Өдөр тутмын оноо</th><th class="p-3 text-left">IB / өдөр</th><th class="p-3 text-left">ATL</th><th class="p-3"></th></tr></thead>
+      <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Нийт оноо</th><th class="p-3 text-left">7 хоног</th><th class="p-3 text-left">Өдөр тутмын оноо</th><th class="p-3 text-left">IB / өдөр</th><th class="p-3 text-left">ATL</th><th class="p-3 text-right">Үйлдэл</th></tr></thead>
       <tbody>
         {% for c in configs %}
         <tr class="border-t">
-          <td class="p-3 font-semibold">{{ c.lesson_title or 'Бүх хичээл' }}</td>
-          <td class="p-3">{{ c.total_points }}</td>
+          <td class="p-3 font-semibold">
+            <span class="inline-view-only">{{ c.lesson_title or 'Бүх хичээл' }}</span>
+            <span class="inline-edit-only">
+              <select form="cfg-edit-{{ c.id }}" name="lesson_id" class="px-2 py-1 border rounded w-36">
+                <option value="0" {% if c.lesson_id == 0 %}selected{% endif %}>Бүх хичээлд</option>
+                {% for l in lessons %}<option value="{{ l.id }}" {% if c.lesson_id == l.id %}selected{% endif %}>{{ l.title }}</option>{% endfor %}
+              </select>
+            </span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ c.total_points }}</span>
+            <span class="inline-edit-only"><input form="cfg-edit-{{ c.id }}" name="total_points" value="{{ c.total_points }}" class="px-2 py-1 border rounded w-20"></span>
+          </td>
           <td class="p-3">{{ c.weeks }}</td>
           <td class="p-3">{{ c.per_day }}</td>
           <td class="p-3">{{ c.ib_per_day }}</td>
-          <td class="p-3">{{ c.atl_skill }}</td>
-          <td class="p-3 text-right">
-            <form method="POST" action="/teacher/setup/attendance-config/{{ c.id }}/delete">
+          <td class="p-3">
+            <span class="inline-view-only">{{ c.atl_skill }}</span>
+            <span class="inline-edit-only"><input form="cfg-edit-{{ c.id }}" name="atl_skill" value="{{ c.atl_skill }}" class="px-2 py-1 border rounded w-28"></span>
+          </td>
+          <td class="p-3 text-right whitespace-nowrap">
+            <form id="cfg-edit-{{ c.id }}" method="POST" action="/teacher/setup/attendance-config/{{ c.id }}/edit" class="hidden">
               <input type="hidden" name="term_id" value="{{ selected_term }}">
               <input type="hidden" name="grade_id" value="{{ selected_grade }}">
-              <button class="text-rose-600 hover:underline text-xs">Хасах</button>
             </form>
+            <span class="inline-view-only">
+              <button type="button" onclick="editRow(this)" class="text-[#714B67] hover:underline text-xs">Засах</button>
+              <form method="POST" action="/teacher/setup/attendance-config/{{ c.id }}/delete" class="inline">
+                <input type="hidden" name="term_id" value="{{ selected_term }}">
+                <input type="hidden" name="grade_id" value="{{ selected_grade }}">
+                <button class="text-rose-600 hover:underline text-xs ml-2">Хасах</button>
+              </form>
+            </span>
+            <span class="inline-edit-only">
+              <button type="submit" form="cfg-edit-{{ c.id }}" class="text-emerald-700 hover:underline text-xs">Хадгалах</button>
+              <button type="button" onclick="cancelEdit(this)" class="text-slate-500 hover:underline text-xs ml-2">Цуцлах</button>
+            </span>
           </td>
         </tr>
         {% endfor %}

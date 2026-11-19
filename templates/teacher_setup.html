@@ -18,15 +18,16 @@
 
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     {% set cards = [
-      ('/teacher/setup/grades', '🏫', 'Ангиуд', '1-12 анги, a/b/c бүлэг'),
-      ('/teacher/setup/terms', '📅', 'Хичээлийн улирал', 'Нэмэх, хасах, огноо сонгох'),
-      ('/teacher/setup/lessons', '📚', 'Хичээл бүртгэх', 'Багш, анги, unit plan'),
-      ('/teacher/setup/unit-plans', '🧩', 'IB Unit Plan', 'Хичээлд хамааруулан бүртгэх'),
-      ('/teacher/timetable', '🗓️', 'Хичээлийн хуваарь', 'Календар дээр долоо хоног/цаг'),
-      ('/teacher/setup/attendance-config', '✅', 'Ирцийн оноо', 'Улиралд оноох нийт оноо, ATL'),
-      ('/teacher/sessions', '🧾', 'Хичээлийн өдөр', 'Ирц, A-D шалгуур, сахилга'),
-      ('/teacher/data-analysis', '📊', 'Data analysis даалгавар', 'CSV жишээ, Word тайлан, AI үнэлгээ'),
-      ('/teacher/term-grades', '🏆', 'Улирлын дүн', '8 ба 100 оноо, багш засах')
+      ('/teacher/setup/grades', '🏫', 'Ангиуд', '1-12 анги, a/b/c бүлэг, засах'),
+      ('/teacher/setup/terms', '📅', 'Хичээлийн улирал', 'Нэмэх, засах, он-сар сонгох'),
+      ('/teacher/setup/lessons', '📚', 'Хичээл бүртгэх', 'Багш, анги, unit plan, засах'),
+      ('/teacher/setup/unit-plans', '🧩', 'IB Unit Plan', 'Хичээлд хамааруулан бүртгэх, засах'),
+      ('/teacher/timetable', '🗓️', 'Хичээлийн хуваарь', 'Календар дээр долоо хоног/цаг, засах'),
+      ('/teacher/setup/attendance-config', '✅', 'Ирцийн оноо', 'Улиралд оноох нийт оноо, ATL, засах'),
+      ('/teacher/sessions', '🧾', 'Хичээлийн өдөр', 'Ирц, A-D шалгуур, сахилга, засах'),
+      ('/teacher/data-analysis', '📊', 'Data analysis даалгавар', 'CSV жишээ, Word тайлан, AI үнэлгээ, засах'),
+      ('/teacher/term-grades', '🏆', 'Улирлын дүн', '8 ба 100 оноо, багш засах'),
+      ('/teacher/data-transfer', '📥', 'Өгөгдөл CSV', 'Сурагч, шалгалт, улирлын дүн экспорт/импорт')
     ] %}
     {% for href, icon, title, desc in cards %}
       <a href="{{ href }}" class="bg-white p-5 rounded-2xl border shadow-sm hover:border-[#714B67] transition">

@@ -4,7 +4,7 @@
   <div class="flex flex-wrap justify-between items-center gap-3">
     <div>
       <h1 class="text-2xl font-black text-slate-800">Сахилга бат / Урамшуулал</h1>
-      <p class="text-sm text-slate-500">Сайн, идэвхтэй сурагчид оноо нэмэх эсвэл зөрчилд оноо хасах.</p>
+      <p class="text-sm text-slate-500">Сайн, идэвхтэй сурагчид оноо нэмэх эсвэл зөрчилд оноо хасах. Бүртгэлийн мөрөнд <b>Засах</b> дарж оноо, тайлбарыг өөрчилнө.</p>
     </div>
     <a href="/teacher/attendance?grade={{ grade }}&date={{ selected_date }}" class="text-sm font-semibold text-indigo-700 hover:underline">Ирц бүртгэх →</a>
   </div>
@@ -97,20 +97,35 @@
               <td class="px-4 py-3 text-slate-500">{{ r.date }}</td>
               <td class="px-4 py-3 font-semibold text-slate-800">{{ r.surname or '' }} {{ r.name or r.username }}</td>
               <td class="px-4 py-3 text-slate-700">
-                {{ r.note }}
-                {% if r.source == 'attendance' %}
-                  <span class="ml-1 text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Ирцээс</span>
-                {% endif %}
+                <span class="inline-view-only">
+                  {{ r.note }}
+                  {% if r.source == 'attendance' %}
+                    <span class="ml-1 text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Ирцээс</span>
+                  {% endif %}
+                </span>
+                <span class="inline-edit-only"><input form="disc-edit-{{ r.id }}" type="text" name="note" value="{{ r.note }}" class="w-full px-2 py-1 border rounded text-sm"></span>
               </td>
               <td class="px-4 py-3 text-center font-bold {% if r.score_delta < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">
-                {% if r.score_delta > 0 %}+{% endif %}{{ r.score_delta }}
+                <span class="inline-view-only">{% if r.score_delta > 0 %}+{% endif %}{{ r.score_delta }}</span>
+                <span class="inline-edit-only"><input form="disc-edit-{{ r.id }}" type="number" name="score_delta" value="{{ r.score_delta }}" min="-100" max="100" class="w-20 px-2 py-1 border rounded text-center"></span>
               </td>
-              <td class="px-4 py-3 text-right">
-                <form method="POST" action="/teacher/discipline/{{ r.id }}/delete" onsubmit="return confirm('Энэ бүртгэлийг устгах уу?');">
+              <td class="px-4 py-3 text-right whitespace-nowrap">
+                <form id="disc-edit-{{ r.id }}" method="POST" action="/teacher/discipline/{{ r.id }}/edit" class="hidden">
                   <input type="hidden" name="grade" value="{{ grade }}">
                   <input type="hidden" name="date" value="{{ selected_date }}">
-                  <button type="submit" class="text-xs px-3 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100">Устгах</button>
                 </form>
+                <span class="inline-view-only">
+                  <button type="button" onclick="editRow(this)" class="text-xs px-3 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200">Засах</button>
+                  <form method="POST" action="/teacher/discipline/{{ r.id }}/delete" onsubmit="return confirm('Энэ бүртгэлийг устгах уу?');" class="inline">
+                    <input type="hidden" name="grade" value="{{ grade }}">
+                    <input type="hidden" name="date" value="{{ selected_date }}">
+                    <button type="submit" class="text-xs px-3 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 ml-1">Устгах</button>
+                  </form>
+                </span>
+                <span class="inline-edit-only">
+                  <button type="submit" form="disc-edit-{{ r.id }}" class="text-xs px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100">Хадгалах</button>
+                  <button type="button" onclick="cancelEdit(this)" class="text-xs px-3 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 ml-1">Цуцлах</button>
+                </span>
               </td>
             </tr>
           {% else %}

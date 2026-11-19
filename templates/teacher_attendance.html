@@ -4,9 +4,10 @@
   <div class="flex flex-wrap justify-between items-center gap-3">
     <div>
       <h1 class="text-2xl font-black text-slate-800">Ирц бүртгэх</h1>
-      <p class="text-sm text-slate-500">Календараас хичээл орсон өдрөө сонгож, сурагчдын ирцийг тэмдэглэнэ.</p>
+      <p class="text-sm text-slate-500">Календараас хичээл орсон өдрөө сонгож, сурагчдын ирцийг тэмдэглэнэ. Өмнөх өдрийн ирцийг засах бол огноог сонгоод утгыг өөрчилж «Ирц хадгалах» дарна.</p>
     </div>
     <div class="flex items-center gap-3 text-sm">
+      <button type="button" onclick="const f=document.getElementById('att-form'); if(!f)return; const d=f.dataset.editing==='1'; f.querySelectorAll('input[type=radio],input[type=number]').forEach(i=>i.disabled=d); f.dataset.editing=d?'0':'1'; this.textContent=d?'Засах':'Засахыг болих';" class="px-3 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold">Засах</button>
       <a href="/teacher/attendance-settings?grade={{ grade }}" class="font-semibold text-teal-700 hover:underline">Ирцийн оноо тохируулах →</a>
       <a href="/teacher/discipline?grade={{ grade }}&date={{ selected_date }}" class="font-semibold text-amber-700 hover:underline">Сахилга / урамшуулал →</a>
     </div>
@@ -43,7 +44,7 @@
       Ирц бүртгэх сурагч олдсонгүй. Эхлээд сурагчдын ангийг бүртгэнэ үү.
     </div>
   {% else %}
-    <form method="POST" action="/teacher/attendance" class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+    <form method="POST" action="/teacher/attendance" id="att-form" data-editing="0" class="bg-white rounded-2xl border shadow-sm overflow-hidden">
       <input type="hidden" name="grade" value="{{ grade }}">
       <input type="hidden" name="date" value="{{ selected_date }}">
       <div class="p-4 border-b bg-slate-50 flex flex-wrap items-center justify-between gap-3">
@@ -98,7 +99,8 @@
         <button type="submit" class="px-5 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700">Ирц хадгалах</button>
       </div>
     </form>
-    <p class="text-xs text-slate-400">Нэмэлт оноо нь сахилга / урамшууллын бүртгэлд хадгалагдаж, нийт оноонд нэмэгдэнэ. Сөрөг оноо оруулбал хасна.</p>
+    <script>document.addEventListener('DOMContentLoaded',()=>{const f=document.getElementById('att-form'); if(f){f.querySelectorAll('input[type=radio],input[type=number]').forEach(i=>i.disabled=true);}});</script>
+    <p class="text-xs text-slate-400">Нэмэлт оноо нь сахилга / урамшууллын бүртгэлд хадгалагдаж, нийт оноонд нэмэгдэнэ. Сөрөг оноо оруулбал хасна. Ирцийг засах бол дээрх «Засах» товчийг дарна уу.</p>
   {% endif %}
 </div>
 {% endblock %}

@@ -4,9 +4,10 @@
   <div>
     <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
     <h1 class="text-2xl font-black mt-1">Хичээл бүртгэх</h1>
-    <p class="text-sm text-slate-500">Хичээл олон багштай, олон ангид харагдана. Тухайн ангийн сурагч л харна.</p>
+    <p class="text-sm text-slate-500">Хичээл олон багштай, олон ангид харагдана. Тухайн ангийн сурагч л харна. Мөрийн <b>Засах</b> товчоор нэр, багш, ангийг өөрчилнө.</p>
   </div>
   {% if request.query_params.get('error') %}<div class="text-sm text-rose-600">Хичээл, багш, ангийг сонгоно уу.</div>{% endif %}
+  {% if request.query_params.get('updated') %}<div class="text-sm text-emerald-600">Хичээл шинэчлэгдлээ.</div>{% endif %}
 
   <form method="POST" action="/teacher/setup/lessons" class="bg-white p-5 rounded-2xl border space-y-4">
     <div class="grid md:grid-cols-2 gap-4">
@@ -40,19 +41,46 @@
     <button class="bg-[#714B67] text-white px-5 py-2 rounded-lg text-sm">Бүртгэх</button>
   </form>
 
-  <div class="bg-white rounded-2xl border overflow-hidden">
+  <div class="bg-white rounded-2xl border overflow-x-auto">
     <table class="w-full text-sm">
       <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
-        <tr><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Багш</th><th class="p-3 text-left">Анги</th><th class="p-3 text-left">Unit plan</th><th class="p-3"></th></tr>
+        <tr><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Багш</th><th class="p-3 text-left">Анги</th><th class="p-3 text-left">Unit plan</th><th class="p-3 text-right">Үйлдэл</th></tr>
       </thead>
       <tbody>
         {% for l in lessons %}
         <tr class="border-t">
-          <td class="p-3 font-bold"><a href="/teacher/setup/lessons/{{ l.id }}" class="text-[#714B67] hover:underline">{{ l.title }}</a></td>
-          <td class="p-3">{{ l.teachers | map(attribute='name') | select('string') | join(', ') or '—' }}</td>
-          <td class="p-3">{{ l.grades | join(', ') or '—' }}</td>
+          <td class="p-3 font-bold">
+            <a href="/teacher/setup/lessons/{{ l.id }}" class="inline-view-only text-[#714B67] hover:underline">{{ l.title }}</a>
+            <span class="inline-edit-only"><input form="lesson-edit-{{ l.id }}" name="title" value="{{ l.title }}" class="px-2 py-1 border rounded w-32"></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ l.teachers | map(attribute='name') | select('string') | join(', ') or '—' }}</span>
+            <span class="inline-edit-only">
+              <select form="lesson-edit-{{ l.id }}" name="teacher_ids" multiple size="3" class="px-1 py-1 border rounded w-28 text-xs">
+                {% for t in teachers %}<option value="{{ t.id }}" {% if t.id in l.teacher_ids %}selected{% endif %}>{{ t.name or t.username }}</option>{% endfor %}
+              </select>
+            </span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ l.grades | join(', ') or '—' }}</span>
+            <span class="inline-edit-only">
+              <select form="lesson-edit-{{ l.id }}" name="grade_ids" multiple size="3" class="px-1 py-1 border rounded w-24 text-xs">
+                {% for g in grades %}<option value="{{ g.id }}" {% if g.id in l.grade_ids %}selected{% endif %}>{{ g.name }}</option>{% endfor %}
+              </select>
+            </span>
+          </td>
           <td class="p-3">{{ l.unit_plans }}</td>
-          <td class="p-3"><a href="/teacher/setup/lessons/{{ l.id }}" class="text-xs text-teal-700 hover:underline">Дэлгэрэнгүй</a></td>
+          <td class="p-3 text-right whitespace-nowrap">
+            <form id="lesson-edit-{{ l.id }}" method="POST" action="/teacher/setup/lessons/{{ l.id }}/edit" class="hidden"></form>
+            <span class="inline-view-only">
+              <button type="button" onclick="editRow(this)" class="text-[#714B67] hover:underline text-xs">Засах</button>
+              <a href="/teacher/setup/lessons/{{ l.id }}" class="text-xs text-teal-700 hover:underline ml-2">Дэлгэрэнгүй</a>
+            </span>
+            <span class="inline-edit-only">
+              <button type="submit" form="lesson-edit-{{ l.id }}" class="text-emerald-700 hover:underline text-xs">Хадгалах</button>
+              <button type="button" onclick="cancelEdit(this)" class="text-slate-500 hover:underline text-xs ml-2">Цуцлах</button>
+            </span>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

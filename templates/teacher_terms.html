@@ -4,38 +4,63 @@
   <div>
     <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
     <h1 class="text-2xl font-black mt-1">Хичээлийн улирал (Academic terms)</h1>
-    <p class="text-sm text-slate-500">Долоо хоногийн тоог эхлэх/дуусах өдрөөс автоматаар тооцно. Өөрчлөхийн тулд 7 долоо хоног гэж бичнэ үү.</p>
+    <p class="text-sm text-slate-500">Долоо хоногийн тоог эхлэх/дуусах өдрөөс автоматаар тооцно. Өөрчлөхийн тулд 7 долоо хоног гэж бичнэ үү. Он, сар, огноог засахын тулд мөрийн <b>Засах</b> товчийг дарна уу.</p>
   </div>
   {% if request.query_params.get('created') %}<div class="text-sm text-emerald-600">Улирал нэмэгдлээ.</div>{% endif %}
+  {% if request.query_params.get('updated') %}<div class="text-sm text-emerald-600">Улирал шинэчлэгдлээ.</div>{% endif %}
+  {% if request.query_params.get('deleted') %}<div class="text-sm text-emerald-600">Улирал хасагдлаа.</div>{% endif %}
   {% if request.query_params.get('error') %}<div class="text-sm text-rose-600">Огноо буруу байна.</div>{% endif %}
 
   <form method="POST" action="/teacher/setup/terms" class="bg-white p-5 rounded-2xl border grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
     <div><label class="block text-xs text-slate-500 mb-1">Нэр</label><input name="name" placeholder="1-р улирал" required class="w-full px-2 py-2 border rounded-lg"></div>
     <div><label class="block text-xs text-slate-500 mb-1">Хичээлийн жил</label><input name="school_year" placeholder="2026-2027" class="w-full px-2 py-2 border rounded-lg"></div>
-    <div><label class="block text-xs text-slate-500 mb-1">Эхлэх өдөр</label><input type="date" name="start_date" required class="w-full px-2 py-2 border rounded-lg"></div>
-    <div><label class="block text-xs text-slate-500 mb-1">Дуусах өдөр</label><input type="date" name="end_date" required class="w-full px-2 py-2 border rounded-lg"></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Эхлэх өдөр (он-сар-өдөр)</label><input type="date" name="start_date" required class="w-full px-2 py-2 border rounded-lg"></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Дуусах өдөр (он-сар-өдөр)</label><input type="date" name="end_date" required class="w-full px-2 py-2 border rounded-lg"></div>
     <div><label class="block text-xs text-slate-500 mb-1">7 хоног</label><input name="weeks" placeholder="автомат" class="w-full px-2 py-2 border rounded-lg"></div>
     <button class="bg-[#714B67] text-white px-4 py-2 rounded-lg text-sm h-[38px]">Улирал нэмэх</button>
   </form>
 
-  <div class="bg-white rounded-2xl border overflow-hidden">
+  <div class="bg-white rounded-2xl border overflow-x-auto">
     <table class="w-full text-sm">
       <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
-        <tr><th class="p-3 text-left">Улирал</th><th class="p-3 text-left">Хичээлийн жил</th><th class="p-3 text-left">Эхлэх</th><th class="p-3 text-left">Дуусах</th><th class="p-3 text-left">7 хоног</th><th class="p-3 text-left">Хичээлийн өдөр</th><th class="p-3"></th></tr>
+        <tr><th class="p-3 text-left">Улирал</th><th class="p-3 text-left">Хичээлийн жил</th><th class="p-3 text-left">Эхлэх</th><th class="p-3 text-left">Дуусах</th><th class="p-3 text-left">7 хоног</th><th class="p-3 text-left">Хичээлийн өдөр</th><th class="p-3 text-right">Үйлдэл</th></tr>
       </thead>
       <tbody>
         {% for t in terms %}
         <tr class="border-t">
-          <td class="p-3 font-bold">{{ t.name }}</td>
-          <td class="p-3">{{ t.school_year }}</td>
-          <td class="p-3">{{ t.start_date }}</td>
-          <td class="p-3">{{ t.end_date }}</td>
-          <td class="p-3">{{ t.weeks }}</td>
+          <td class="p-3 font-bold">
+            <span class="inline-view-only">{{ t.name }}</span>
+            <span class="inline-edit-only"><input form="term-edit-{{ t.id }}" name="name" value="{{ t.name }}" class="px-2 py-1 border rounded w-32"></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ t.school_year }}</span>
+            <span class="inline-edit-only"><input form="term-edit-{{ t.id }}" name="school_year" value="{{ t.school_year }}" class="px-2 py-1 border rounded w-28"></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ t.start_date }}</span>
+            <span class="inline-edit-only"><input type="date" form="term-edit-{{ t.id }}" name="start_date" value="{{ t.start_date }}" class="px-2 py-1 border rounded"></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ t.end_date }}</span>
+            <span class="inline-edit-only"><input type="date" form="term-edit-{{ t.id }}" name="end_date" value="{{ t.end_date }}" class="px-2 py-1 border rounded"></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ t.weeks }}</span>
+            <span class="inline-edit-only"><input form="term-edit-{{ t.id }}" name="weeks" value="{{ t.weeks }}" class="px-2 py-1 border rounded w-16"></span>
+          </td>
           <td class="p-3">{{ t.sessions }}</td>
-          <td class="p-3 text-right">
-            <form method="POST" action="/teacher/setup/terms/{{ t.id }}/delete" onsubmit="return confirm('{{ t.name }}-ийг хасах уу? Бүх оноо устах болно.')">
-              <button class="text-rose-600 hover:underline text-xs">Хасах</button>
-            </form>
+          <td class="p-3 text-right whitespace-nowrap">
+            <form id="term-edit-{{ t.id }}" method="POST" action="/teacher/setup/terms/{{ t.id }}/edit" class="hidden"></form>
+            <span class="inline-view-only">
+              <button type="button" onclick="editRow(this)" class="text-[#714B67] hover:underline text-xs">Засах</button>
+              <form method="POST" action="/teacher/setup/terms/{{ t.id }}/delete" onsubmit="return confirm('{{ t.name }}-ийг хасах уу? Бүх оноо устах болно.')" class="inline">
+                <button class="text-rose-600 hover:underline text-xs ml-2">Хасах</button>
+              </form>
+            </span>
+            <span class="inline-edit-only">
+              <button type="submit" form="term-edit-{{ t.id }}" class="text-emerald-700 hover:underline text-xs">Хадгалах</button>
+              <button type="button" onclick="cancelEdit(this)" class="text-slate-500 hover:underline text-xs ml-2">Цуцлах</button>
+            </span>
           </td>
         </tr>
         {% endfor %}

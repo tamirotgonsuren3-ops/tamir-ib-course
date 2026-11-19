@@ -8,6 +8,7 @@
   </div>
   {% if request.query_params.get('error') == 'slot_taken' %}<div class="text-sm text-rose-600">Энэ цагт өөр хичээл бүртгэгдсэн байна.</div>{% endif %}
   {% if request.query_params.get('created') %}<div class="text-sm text-emerald-600">Хуваарь хадгалагдлаа.</div>{% endif %}
+  {% if request.query_params.get('updated') %}<div class="text-sm text-emerald-600">Хуваарь шинэчлэгдлээ.</div>{% endif %}
 
   <form method="GET" action="/teacher/timetable" class="bg-white p-4 rounded-2xl border flex gap-3 items-end">
     <div><label class="block text-xs text-slate-500 mb-1">Улирал</label>
@@ -52,13 +53,29 @@
             <td class="p-2 border align-top h-16">
               {% for s in slots %}
                 <div class="mb-1 p-1 rounded bg-indigo-50 text-indigo-800">
-                  <div class="font-semibold">{{ s.lesson_title }}</div>
-                  <div>{{ s.teacher_name or 'багш —' }}{% if s.room %} · {{ s.room }}{% endif %}</div>
-                  <form method="POST" action="/teacher/timetable/{{ s.id }}/delete">
-                    <input type="hidden" name="term_id" value="{{ selected_term }}">
-                    <input type="hidden" name="grade_id" value="{{ selected_grade }}">
-                    <button class="text-rose-600 hover:underline">хасах</button>
-                  </form>
+                  <div class="inline-view-only">
+                    <div class="font-semibold">{{ s.lesson_title }}</div>
+                    <div>{{ s.teacher_name or 'багш —' }}{% if s.room %} · {{ s.room }}{% endif %}</div>
+                    <div class="mt-1">
+                      <button type="button" onclick="this.closest('.rounded').classList.toggle('editing')" class="text-[#714B67] hover:underline">засах</button>
+                      <form method="POST" action="/teacher/timetable/{{ s.id }}/delete" class="inline">
+                        <input type="hidden" name="term_id" value="{{ selected_term }}">
+                        <input type="hidden" name="grade_id" value="{{ selected_grade }}">
+                        <button class="text-rose-600 hover:underline ml-1">хасах</button>
+                      </form>
+                    </div>
+                  </div>
+                  <div class="inline-edit-only">
+                    <form method="POST" action="/teacher/timetable/{{ s.id }}/edit" class="space-y-1">
+                      <input type="hidden" name="term_id" value="{{ selected_term }}">
+                      <input type="hidden" name="grade_id" value="{{ selected_grade }}">
+                      <select name="lesson_id" class="w-full px-1 py-0.5 border rounded text-xs">{% for l in lessons %}<option value="{{ l.id }}" {% if l.id == s.lesson_id %}selected{% endif %}>{{ l.title }}</option>{% endfor %}</select>
+                      <select name="teacher_id" class="w-full px-1 py-0.5 border rounded text-xs"><option value="0">багш —</option>{% for t in teachers %}<option value="{{ t.id }}" {% if t.id == s.teacher_id %}selected{% endif %}>{{ t.name or t.username }}</option>{% endfor %}</select>
+                      <div class="flex gap-1"><select name="weekday" class="px-1 py-0.5 border rounded text-xs flex-1">{% for d in weekdays %}<option value="{{ loop.index0 }}" {% if loop.index0 == s.weekday %}selected{% endif %}>{{ d }}</option>{% endfor %}</select><select name="period" class="px-1 py-0.5 border rounded text-xs w-16">{% for per in periods %}<option value="{{ per }}" {% if per == s.period %}selected{% endif %}>{{ per }}</option>{% endfor %}</select></div>
+                      <input name="room" value="{{ s.room or '' }}" placeholder="Өрөө" class="w-full px-1 py-0.5 border rounded text-xs">
+                      <div><button class="text-emerald-700 hover:underline">хадгалах</button> <button type="button" onclick="this.closest('.rounded').classList.toggle('editing')" class="text-slate-500 hover:underline ml-1">цуцлах</button></div>
+                    </form>
+                  </div>
                 </div>
               {% endfor %}
             </td>

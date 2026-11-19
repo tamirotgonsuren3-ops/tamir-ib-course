@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EduPath - IB & Odoo ERP Learning</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .inline-edit-only { display: none; }
+    tr.editing .inline-view-only, .editing .inline-view-only { display: none !important; }
+    tr.editing .inline-edit-only { display: inline !important; }
+    .editing .inline-edit-only { display: block !important; }
+    td .editing .inline-edit-only, div.editing > .inline-edit-only { display: block !important; }
+  </style>
+  <script>
+    function editRow(btn) { btn.closest('tr').classList.add('editing'); }
+    function cancelEdit(btn) { btn.closest('tr').classList.remove('editing'); }
+  </script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
   <nav class="bg-[#714B67] text-white shadow-md">
@@ -26,6 +37,7 @@
             <a href="/teacher/attendance" class="hover:underline">Ирц</a>
             <a href="/teacher/scoring" class="hover:underline">Оноо</a>
             <a href="/scores" class="hover:underline">Дүн</a>
+            <a href="/teacher/data-transfer" class="hover:underline">Өгөгдөл</a>
           {% else %}
             <a href="/student" class="hover:underline">Самбар</a>
             <a href="/student/data-analysis" class="hover:underline">Data analysis</a>

@@ -4,9 +4,10 @@
   <div>
     <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
     <h1 class="text-2xl font-black mt-1">Data analysis бие даалт</h1>
-    <p class="text-sm text-slate-500">Багш жишээ CSV оруулна. Сурагч Word (table, chart, text) тайлан илгээнэ. AI IB шалгуураар үнэлнэ.</p>
+    <p class="text-sm text-slate-500">Багш жишээ CSV оруулна. Сурагч Word (table, chart, text) тайлан илгээнэ. AI IB шалгуураар үнэлнэ. Мөрийн <b>Засах</b> товчоор өөрчилнө.</p>
   </div>
   {% if request.query_params.get('created') %}<div class="text-sm text-emerald-600">Даалгавар үүслээ.</div>{% endif %}
+  {% if request.query_params.get('updated') %}<div class="text-sm text-emerald-600">Даалгавар шинэчлэгдлээ.</div>{% endif %}
 
   <form method="POST" action="/teacher/data-analysis" enctype="multipart/form-data" class="bg-white p-5 rounded-2xl border grid md:grid-cols-3 gap-3">
     <input type="hidden" name="term_id" value="{{ selected_term }}">
@@ -29,19 +30,57 @@
     <button class="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm">Харуулах</button>
   </form>
 
-  <div class="bg-white rounded-2xl border overflow-hidden">
+  <div class="bg-white rounded-2xl border overflow-x-auto">
     <table class="w-full text-sm">
-      <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="p-3 text-left">Даалгавар</th><th class="p-3 text-left">Хичээл / Анги</th><th class="p-3 text-left">Unit</th><th class="p-3 text-left">Оноо</th><th class="p-3 text-left">Хугацаа</th><th class="p-3 text-left">Илгээсэн / Шалгасан</th><th class="p-3"></th></tr></thead>
+      <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="p-3 text-left">Даалгавар</th><th class="p-3 text-left">Хичээл / Анги</th><th class="p-3 text-left">Unit</th><th class="p-3 text-left">Оноо</th><th class="p-3 text-left">Хугацаа</th><th class="p-3 text-left">Илгээсэн / Шалгасан</th><th class="p-3 text-right">Үйлдэл</th></tr></thead>
       <tbody>
         {% for a in assignments %}
         <tr class="border-t">
-          <td class="p-3 font-semibold"><a href="/teacher/data-analysis/{{ a.id }}" class="text-[#714B67] hover:underline">{{ a.title }}</a>{% if a.csv_path %}<div class="text-xs text-slate-400">CSV хавсаргасан</div>{% endif %}</td>
-          <td class="p-3">{{ a.lesson_title }} · {{ a.grade_name }}</td>
-          <td class="p-3">{{ a.unit_title or '—' }}</td>
-          <td class="p-3">{{ a.max_score }}</td>
-          <td class="p-3">{{ a.due_date or '—' }}</td>
-          <td class="p-3">{{ a.total_subs }} / {{ a.graded_subs }}</td>
-          <td class="p-3"><a href="/teacher/data-analysis/{{ a.id }}" class="text-xs text-teal-700 hover:underline">Нээх</a></td>
+          <td class="p-3 font-semibold">
+            <span class="inline-view-only"><a href="/teacher/data-analysis/{{ a.id }}" class="text-[#714B67] hover:underline">{{ a.title }}</a>{% if a.csv_path %}<div class="text-xs text-slate-400">CSV хавсаргасан</div>{% endif %}</span>
+            <span class="inline-edit-only space-y-1">
+              <input form="da-edit-{{ a.id }}" name="title" value="{{ a.title }}" class="px-2 py-1 border rounded w-full">
+              <input form="da-edit-{{ a.id }}" name="description" value="{{ a.description or '' }}" placeholder="Тайлбар" class="px-2 py-1 border rounded w-full text-xs">
+              <input form="da-edit-{{ a.id }}" type="file" name="csv_file" accept=".csv,.txt" class="text-xs">
+            </span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ a.lesson_title }} · {{ a.grade_name }}</span>
+            <span class="inline-edit-only space-y-1">
+              <select form="da-edit-{{ a.id }}" name="lesson_id" class="px-2 py-1 border rounded w-full text-xs">{% for l in lessons %}<option value="{{ l.id }}" {% if l.id == a.lesson_id %}selected{% endif %}>{{ l.title }}</option>{% endfor %}</select>
+              <select form="da-edit-{{ a.id }}" name="grade_id" class="px-2 py-1 border rounded w-full text-xs">{% for g in grades %}<option value="{{ g.id }}" {% if g.id == a.grade_id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select>
+              <select form="da-edit-{{ a.id }}" name="term_id" class="px-2 py-1 border rounded w-full text-xs">{% for t in terms %}<option value="{{ t.id }}" {% if t.id == a.term_id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
+            </span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ a.unit_title or '—' }}</span>
+            <span class="inline-edit-only"><select form="da-edit-{{ a.id }}" name="unit_plan_id" class="px-2 py-1 border rounded text-xs"><option value="0">—</option>{% for p in unit_plans %}<option value="{{ p.id }}" {% if p.id == a.unit_plan_id %}selected{% endif %}>{{ p.title }}</option>{% endfor %}</select></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ a.max_score }}</span>
+            <span class="inline-edit-only"><input form="da-edit-{{ a.id }}" name="max_score" value="{{ a.max_score }}" class="px-2 py-1 border rounded w-14"></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ a.due_date or '—' }}</span>
+            <span class="inline-edit-only"><input form="da-edit-{{ a.id }}" type="date" name="due_date" value="{{ a.due_date or '' }}" class="px-2 py-1 border rounded"></span>
+          </td>
+          <td class="p-3">{{ a.total_subs }} / {{ a.graded_subs }}
+            <span class="inline-edit-only block mt-1 space-y-1">
+              <select form="da-edit-{{ a.id }}" name="provider" class="px-2 py-1 border rounded w-full text-xs"><option value="gemini" {% if a.provider == 'gemini' %}selected{% endif %}>Gemini</option><option value="deepseek" {% if a.provider == 'deepseek' %}selected{% endif %}>DeepSeek</option><option value="ollama" {% if a.provider == 'ollama' %}selected{% endif %}>Ollama</option></select>
+              <input form="da-edit-{{ a.id }}" name="model" value="{{ a.model or '' }}" placeholder="Model" class="px-2 py-1 border rounded w-full text-xs">
+            </span>
+          </td>
+          <td class="p-3 text-right whitespace-nowrap">
+            <form id="da-edit-{{ a.id }}" method="POST" action="/teacher/data-analysis/{{ a.id }}/edit" enctype="multipart/form-data" class="hidden"></form>
+            <span class="inline-view-only">
+              <button type="button" onclick="editRow(this)" class="text-[#714B67] hover:underline text-xs">Засах</button>
+              <a href="/teacher/data-analysis/{{ a.id }}" class="text-xs text-teal-700 hover:underline ml-2">Нээх</a>
+            </span>
+            <span class="inline-edit-only">
+              <button type="submit" form="da-edit-{{ a.id }}" class="text-emerald-700 hover:underline text-xs">Хадгалах</button>
+              <button type="button" onclick="cancelEdit(this)" class="text-slate-500 hover:underline text-xs ml-2">Цуцлах</button>
+            </span>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

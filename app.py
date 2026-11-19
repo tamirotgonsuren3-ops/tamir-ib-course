@@ -1,4 +1,6 @@
 import calendar
+import csv
+import io
 import math
 import os
 import console_utils  # noqa: F401 - configures UTF-8 console output on Windows
@@ -12,7 +14,7 @@ import uuid
 from datetime import datetime, date, timedelta
 from typing import Optional
 from fastapi import FastAPI, Request, Form, File, UploadFile, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from quiz_engine import generate_quiz, score_quiz
@@ -118,6 +120,25 @@ def _default_school_year() -> tuple[str, int]:
     today = date.today()
     start_year = today.year if today.month >= 9 else today.year - 1
     return f"{start_year}-{start_year + 1}", start_year
+
+
+# --- CSV IMPORT / EXPORT HELPERS ---
+def _csv_response(filename: str, rows: list[list]) -> Response:
+    buf = io.StringIO()
+    csv.writer(buf).writerows(rows)
+    return Response(
+        content="\ufeff" + buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _csv_dicts(text: str) -> list[dict]:
+    reader = csv.DictReader(io.StringIO(text.lstrip("\ufeff")))
+    return [
+        {(k or "").strip(): (v or "").strip() for k, v in row.items() if k}
+        for row in reader
+    ]
 
 
 # --- DATABASE SETUP (SQLite) ---
@@ -971,6 +992,61 @@ def scores_page(request: Request, user: dict = Depends(get_current_user), db: sq
     )
 
 
+@app.post("/teacher/students/{student_id}/edit")
+async def teacher_student_edit(student_id: int, request: Request,
+                               user: dict = Depends(get_current_user),
+                               db: sqlite3.Connection = Depends(get_db)):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    if not db.execute("SELECT 1 FROM users WHERE id = ? AND role = 'student'", (student_id,)).fetchone():
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    grade = str(form.get("grade") or "").strip().lower()
+    if not parse_grade(grade):
+        return RedirectResponse("/scores?error=invalid_grade", status_code=status.HTTP_302_FOUND)
+    values = {
+        "username": str(form.get("username") or "").strip(),
+        "student_code": str(form.get("student_code") or "").strip(),
+        "name": str(form.get("name") or "").strip(),
+        "surname": str(form.get("surname") or "").strip(),
+        "grade": grade,
+        "email": str(form.get("email") or "").strip().lower(),
+        "gender": str(form.get("gender") or "").strip(),
+        "phone": str(form.get("phone") or "").strip(),
+        "instagram": str(form.get("instagram") or "").strip() or None,
+    }
+    required = [values["username"], values["student_code"], values["name"], values["surname"],
+                values["grade"], values["email"], values["gender"], values["phone"]]
+    if not all(required):
+        return RedirectResponse("/scores?error=missing_fields", status_code=status.HTTP_302_FOUND)
+    password = str(form.get("password") or "").strip()
+    assignments = ", ".join(f"{key} = ?" for key in values)
+    params = [*values.values()]
+    if password:
+        assignments += ", password = ?"
+        params.append(password)
+    params.append(student_id)
+    try:
+        db.execute(f"UPDATE users SET {assignments} WHERE id = ?", params)
+        db.commit()
+    except sqlite3.IntegrityError:
+        return RedirectResponse("/scores?error=exists", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse("/scores?updated=1", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/teacher/submissions/{submission_id}/edit")
+def teacher_submission_edit(
+    submission_id: int, total_score: str = Form(...), user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    db.execute("UPDATE submissions SET total_score = ? WHERE id = ?",
+               (_parse_int(total_score, 0, 0, 8), submission_id))
+    db.commit()
+    return RedirectResponse("/scores?updated=1", status_code=status.HTTP_302_FOUND)
+
+
 # --- HOMEWORK HELPERS ---
 
 def _get_homework(db: sqlite3.Connection, homework_id: int):
@@ -1719,6 +1795,31 @@ async def teacher_discipline_save(
     )
 
 
+@app.post("/teacher/discipline/{record_id}/edit")
+def teacher_discipline_edit(
+    record_id: int, grade: str = Form(""), date: str = Form(""), note: str = Form(""),
+    score_delta: str = Form(""), user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    delta = _clamp_delta(score_delta, -100, 100)
+    if delta == 0 or not (note or "").strip():
+        return RedirectResponse(
+            f"/teacher/discipline?grade={grade}&date={date}&error=invalid",
+            status_code=status.HTTP_302_FOUND,
+        )
+    db.execute(
+        "UPDATE discipline_records SET note = ?, score_delta = ? WHERE id = ?",
+        ((note or "").strip(), delta, record_id),
+    )
+    db.commit()
+    return RedirectResponse(
+        f"/teacher/discipline?grade={grade}&date={date}&saved=1",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
 @app.post("/teacher/discipline/{record_id}/delete")
 def teacher_discipline_delete(
     record_id: int,
@@ -2184,6 +2285,31 @@ def teacher_grade_create(name: str = Form(...), user: dict = Depends(get_current
     return RedirectResponse("/teacher/setup/grades?created=1", status_code=status.HTTP_302_FOUND)
 
 
+@app.post("/teacher/setup/grades/{grade_id}/edit")
+def teacher_grade_edit(grade_id: int, name: str = Form(...), user: dict = Depends(get_current_user),
+                       db: sqlite3.Connection = Depends(get_db)):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    old_name = _grade_name(db, grade_id)
+    normalized = (name or "").strip().lower()
+    parsed = parse_grade(normalized)
+    if not parsed or not old_name:
+        return RedirectResponse("/teacher/setup/grades?error=invalid", status_code=status.HTTP_302_FOUND)
+    try:
+        db.execute(
+            "UPDATE grades SET name = ?, level = ?, section = ? WHERE id = ?",
+            (normalized, parsed[0], parsed[1], grade_id),
+        )
+    except sqlite3.IntegrityError:
+        return RedirectResponse("/teacher/setup/grades?error=exists", status_code=status.HTTP_302_FOUND)
+    if normalized != old_name:
+        for table in ("users", "attendance_records", "discipline_records"):
+            db.execute(f"UPDATE {table} SET grade = ? WHERE lower(grade) = lower(?)",
+                       (normalized, old_name))
+    db.commit()
+    return RedirectResponse("/teacher/setup/grades?updated=1", status_code=status.HTTP_302_FOUND)
+
+
 @app.post("/teacher/setup/grades/{grade_id}/delete")
 def teacher_grade_delete(grade_id: int, user: dict = Depends(get_current_user),
                          db: sqlite3.Connection = Depends(get_db)):
@@ -2256,6 +2382,32 @@ def teacher_term_create(
     return RedirectResponse("/teacher/setup/terms?created=1", status_code=status.HTTP_302_FOUND)
 
 
+@app.post("/teacher/setup/terms/{term_id}/edit")
+def teacher_term_edit(
+    term_id: int, name: str = Form(...), school_year: str = Form(""),
+    start_date: str = Form(...), end_date: str = Form(...), weeks: str = Form(""),
+    user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    if not db.execute("SELECT 1 FROM academic_terms WHERE id = ?", (term_id,)).fetchone():
+        raise HTTPException(status_code=404)
+    start, end = _parse_date(start_date), _parse_date(end_date)
+    if not start or not end or end < start or not (name or "").strip():
+        return RedirectResponse("/teacher/setup/terms?error=invalid_dates", status_code=status.HTTP_302_FOUND)
+    computed = _weeks_between(start.isoformat(), end.isoformat())
+    week_count = _parse_int(weeks, computed, 1, 52) if str(weeks or "").strip() else computed
+    db.execute(
+        """UPDATE academic_terms
+           SET name = ?, school_year = ?, start_date = ?, end_date = ?, weeks = ?
+           WHERE id = ?""",
+        ((name or "").strip(), (school_year or "").strip() or _default_school_year()[0],
+         start.isoformat(), end.isoformat(), week_count, term_id),
+    )
+    db.commit()
+    return RedirectResponse("/teacher/setup/terms?updated=1", status_code=status.HTTP_302_FOUND)
+
+
 @app.post("/teacher/setup/terms/{term_id}/delete")
 def teacher_term_delete(term_id: int, user: dict = Depends(get_current_user),
                         db: sqlite3.Connection = Depends(get_db)):
@@ -2303,6 +2455,12 @@ def teacher_lessons_page(request: Request, user: dict = Depends(get_current_user
                WHERE lg.lesson_id = ? ORDER BY g.level, g.section""",
             (lesson["id"],),
         ).fetchall()]
+        item["grade_ids"] = [r[0] for r in db.execute(
+            "SELECT grade_id FROM lesson_grades WHERE lesson_id = ?", (lesson["id"],)
+        ).fetchall()]
+        item["teacher_ids"] = [r[0] for r in db.execute(
+            "SELECT teacher_id FROM lesson_teachers WHERE lesson_id = ?", (lesson["id"],)
+        ).fetchall()]
         item["unit_plans"] = db.execute(
             "SELECT COUNT(*) FROM ib_unit_plans WHERE lesson_id = ?", (lesson["id"],)
         ).fetchone()[0]
@@ -2349,6 +2507,33 @@ async def teacher_lesson_register(request: Request, user: dict = Depends(get_cur
                (teacher_ids[0], lesson_id))
     db.commit()
     return RedirectResponse(f"/teacher/setup/lessons/{lesson_id}?created=1", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/teacher/setup/lessons/{lesson_id}/edit")
+async def teacher_lesson_edit(lesson_id: int, request: Request, user: dict = Depends(get_current_user),
+                              db: sqlite3.Connection = Depends(get_db)):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    if not db.execute("SELECT 1 FROM lessons WHERE id = ?", (lesson_id,)).fetchone():
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    title = str(form.get("title") or "").strip()
+    teacher_ids = [_parse_int(v) for v in form.getlist("teacher_ids") if str(v).strip()]
+    grade_ids = [_parse_int(v) for v in form.getlist("grade_ids") if str(v).strip()]
+    if not title or not teacher_ids or not grade_ids:
+        return RedirectResponse("/teacher/setup/lessons?error=missing_mapping", status_code=status.HTTP_302_FOUND)
+    db.execute("UPDATE lessons SET title = ?, teacher_id = ? WHERE id = ?",
+               (title, teacher_ids[0], lesson_id))
+    db.execute("DELETE FROM lesson_teachers WHERE lesson_id = ?", (lesson_id,))
+    db.execute("DELETE FROM lesson_grades WHERE lesson_id = ?", (lesson_id,))
+    for teacher_id in teacher_ids:
+        db.execute("INSERT OR IGNORE INTO lesson_teachers (lesson_id, teacher_id) VALUES (?, ?)",
+                   (lesson_id, teacher_id))
+    for grade_id in grade_ids:
+        db.execute("INSERT OR IGNORE INTO lesson_grades (lesson_id, grade_id) VALUES (?, ?)",
+                   (lesson_id, grade_id))
+    db.commit()
+    return RedirectResponse("/teacher/setup/lessons?updated=1", status_code=status.HTTP_302_FOUND)
 
 
 @app.get("/teacher/setup/lessons/{lesson_id}", response_class=HTMLResponse)
@@ -2414,6 +2599,26 @@ def teacher_unit_plan_create(
     )
     db.commit()
     return RedirectResponse("/teacher/setup/unit-plans?created=1", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/teacher/setup/unit-plans/{plan_id}/edit")
+def teacher_unit_plan_edit(
+    plan_id: int, lesson_id: int = Form(...), title: str = Form(...), unit_code: str = Form(""),
+    description: str = Form(""), atl_skills: str = Form(""), max_score: str = Form("8"),
+    user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    if not (title or "").strip():
+        return RedirectResponse("/teacher/setup/unit-plans?error=missing_title", status_code=status.HTTP_302_FOUND)
+    db.execute(
+        """UPDATE ib_unit_plans SET lesson_id = ?, title = ?, unit_code = ?, description = ?,
+           atl_skills = ?, max_score = ? WHERE id = ?""",
+        (lesson_id, title.strip(), (unit_code or "").strip(), (description or "").strip(),
+         (atl_skills or "").strip(), _parse_int(max_score, 8, 1, 100), plan_id),
+    )
+    db.commit()
+    return RedirectResponse("/teacher/setup/unit-plans?updated=1", status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/teacher/setup/unit-plans/{plan_id}/delete")
@@ -2503,6 +2708,39 @@ def teacher_timetable_create(
     )
 
 
+@app.post("/teacher/timetable/{slot_id}/edit")
+def teacher_timetable_edit(
+    slot_id: int, term_id: int = Form(...), grade_id: int = Form(...), lesson_id: int = Form(...),
+    weekday: str = Form(...), period: str = Form(...), teacher_id: str = Form(""),
+    room: str = Form(""), user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    day, period_num = _parse_int(weekday, -1, 0, 6), _parse_int(period, -1, 1, 8)
+    if day < 0 or period_num < 0:
+        return RedirectResponse(
+            f"/teacher/timetable?term_id={term_id}&grade_id={grade_id}&error=invalid_slot",
+            status_code=status.HTTP_302_FOUND,
+        )
+    try:
+        db.execute(
+            """UPDATE lesson_timetables SET lesson_id = ?, teacher_id = ?, weekday = ?, period = ?, room = ?
+               WHERE id = ?""",
+            (lesson_id, _parse_int(teacher_id, 0) or None, day, period_num, (room or "").strip(), slot_id),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        return RedirectResponse(
+            f"/teacher/timetable?term_id={term_id}&grade_id={grade_id}&error=slot_taken",
+            status_code=status.HTTP_302_FOUND,
+        )
+    return RedirectResponse(
+        f"/teacher/timetable?term_id={term_id}&grade_id={grade_id}&updated=1",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
 @app.post("/teacher/timetable/{slot_id}/delete")
 def teacher_timetable_delete(slot_id: int, term_id: int = Form(...), grade_id: int = Form(...),
                              user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
@@ -2583,6 +2821,34 @@ def teacher_attendance_config_save(
     db.commit()
     return RedirectResponse(
         f"/teacher/setup/attendance-config?term_id={term_id}&grade_id={grade_id}&saved=1",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
+@app.post("/teacher/setup/attendance-config/{config_id}/edit")
+def teacher_attendance_config_edit(
+    config_id: int, term_id: int = Form(...), grade_id: int = Form(...),
+    lesson_id: str = Form("0"), total_points: str = Form("30"),
+    atl_skill: str = Form("self-management"), user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    try:
+        db.execute(
+            """UPDATE term_attendance_config SET lesson_id = ?, total_points = ?, atl_skill = ?, updated_at = ?
+               WHERE id = ?""",
+            (_parse_int(lesson_id, 0, 0), _parse_int(total_points, 30, 1, 1000),
+             (atl_skill or "self-management").strip() or "self-management", int(time.time()), config_id),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        return RedirectResponse(
+            f"/teacher/setup/attendance-config?term_id={term_id}&grade_id={grade_id}&error=exists",
+            status_code=status.HTTP_302_FOUND,
+        )
+    return RedirectResponse(
+        f"/teacher/setup/attendance-config?term_id={term_id}&grade_id={grade_id}&updated=1",
         status_code=status.HTTP_302_FOUND,
     )
 
@@ -2677,6 +2943,32 @@ def teacher_session_delete(session_id: int, term_id: int = Form(...),
         db.execute(sql, (session_id,))
     db.commit()
     return RedirectResponse(f"/teacher/sessions?term_id={term_id}&deleted=1",
+                            status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/teacher/sessions/{session_id}/edit")
+def teacher_session_edit(
+    session_id: int, term_id: int = Form(...), lesson_id: int = Form(...), grade_id: int = Form(...),
+    date: str = Form(...), topic: str = Form(""), user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    day = _parse_date(date)
+    if not day:
+        return RedirectResponse(f"/teacher/sessions?term_id={term_id}&error=invalid_date",
+                                status_code=status.HTTP_302_FOUND)
+    try:
+        db.execute(
+            """UPDATE lesson_sessions SET term_id = ?, lesson_id = ?, grade_id = ?, date = ?, topic = ?
+               WHERE id = ?""",
+            (term_id, lesson_id, grade_id, day.isoformat(), (topic or "").strip(), session_id),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        return RedirectResponse(f"/teacher/sessions?term_id={term_id}&error=exists",
+                                status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(f"/teacher/sessions?term_id={term_id}&updated=1",
                             status_code=status.HTTP_302_FOUND)
 
 
@@ -2917,6 +3209,47 @@ async def teacher_data_analysis_create(request: Request, user: dict = Depends(ge
     )
     db.commit()
     return RedirectResponse("/teacher/data-analysis?created=1", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/teacher/data-analysis/{assignment_id}/edit")
+async def teacher_data_analysis_edit(assignment_id: int, request: Request,
+                                     user: dict = Depends(get_current_user),
+                                     db: sqlite3.Connection = Depends(get_db)):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    if not db.execute("SELECT 1 FROM data_analysis_assignments WHERE id = ?", (assignment_id,)).fetchone():
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    title = str(form.get("title") or "").strip()
+    if not title:
+        return RedirectResponse("/teacher/data-analysis?error=missing_title", status_code=status.HTTP_302_FOUND)
+    csv_path = None
+    csv_file = form.get("csv_file")
+    if _is_upload(csv_file) and csv_file.filename:
+        csv_path = _safe_upload_name(csv_file.filename, f"csv_{user['id']}", {".csv", ".txt"})
+        if not csv_path:
+            return RedirectResponse("/teacher/data-analysis?error=invalid_csv", status_code=status.HTTP_302_FOUND)
+        with open(os.path.join(UPLOAD_CSV, csv_path), "wb") as buf:
+            shutil.copyfileobj(csv_file.file, buf)
+    sql = """UPDATE data_analysis_assignments
+             SET term_id = ?, lesson_id = ?, grade_id = ?, unit_plan_id = ?, title = ?, description = ?,
+                 max_score = ?, due_date = ?, provider = ?, model = ?"""
+    params = [
+        _parse_int(form.get("term_id"), 0), _parse_int(form.get("lesson_id"), 0),
+        _parse_int(form.get("grade_id"), 0), _parse_int(form.get("unit_plan_id"), 0) or None,
+        title, str(form.get("description") or "").strip(),
+        _parse_int(form.get("max_score"), 20, 1, 1000),
+        _normalize_date(str(form.get("due_date") or "")),
+        str(form.get("provider") or "gemini").strip(), str(form.get("model") or "").strip(),
+    ]
+    if csv_path:
+        sql += ", csv_path = ?"
+        params.append(csv_path)
+    sql += " WHERE id = ?"
+    params.append(assignment_id)
+    db.execute(sql, params)
+    db.commit()
+    return RedirectResponse("/teacher/data-analysis?updated=1", status_code=status.HTTP_302_FOUND)
 
 
 @app.get("/teacher/data-analysis/{assignment_id}", response_class=HTMLResponse)
@@ -3225,3 +3558,259 @@ def student_term_grades_page(request: Request, term_id: Optional[int] = None,
         request=request, name="student_term_grades.html",
         context={"user": user, "terms": terms, "selected_term": selected_term, "rows": rows},
     )
+
+
+# --- CSV EXPORT / IMPORT: SUragchid, dun ---
+
+CSV_HEADERS = {
+    "students": ["student_code", "username", "name", "surname", "grade", "email",
+                 "gender", "phone", "instagram", "password"],
+    "quiz_scores": ["student_code", "quiz_title", "total_score"],
+    "term_grades": ["student_code", "term_name", "school_year", "lesson_title",
+                    "final_100", "ib_score", "note"],
+}
+
+CSV_SAMPLES = {
+    "students": [
+        ["20260001", "20260001", "Болд", "Бат", "10a", "bold@example.com", "эрэгтэй",
+         "99112233", "bold_ib", "student123"],
+        ["20260002", "20260002", "Цэрэн", "Дорж", "10a", "tserэн@example.com", "эмэгтэй",
+         "99887766", "", "student123"],
+    ],
+    "quiz_scores": [
+        ["20260001", "Математик — 1-р шалгалт", "7"],
+        ["20260002", "Математик — 1-р шалгалт", "6"],
+    ],
+    "term_grades": [
+        ["20260001", "1-р улирал", "2026-2027", "Математик", "88", "7", "Сайн ажилласан"],
+        ["20260002", "1-р улирал", "2026-2027", "Математик", "75", "6", ""],
+    ],
+}
+
+CSV_LABELS = {
+    "students": "Сурагчид",
+    "quiz_scores": "Шалгалтын дүн",
+    "term_grades": "Улирлын дүн",
+}
+
+
+def _transfer_page(request: Request, user: dict, db: sqlite3.Connection, result: dict | None = None,
+                   error: str = ""):
+    counts = {
+        "students": db.execute("SELECT COUNT(*) FROM users WHERE role = 'student'").fetchone()[0],
+        "quiz_scores": db.execute("SELECT COUNT(*) FROM submissions").fetchone()[0],
+        "term_grades": db.execute("SELECT COUNT(*) FROM term_grade_overrides").fetchone()[0],
+    }
+    return templates.TemplateResponse(
+        request=request, name="teacher_data_transfer.html",
+        context={
+            "user": user, "counts": counts, "labels": CSV_LABELS,
+            "headers": CSV_HEADERS, "result": result, "error": error,
+        },
+    )
+
+
+@app.get("/teacher/data-transfer", response_class=HTMLResponse)
+def teacher_data_transfer_page(request: Request, user: dict = Depends(get_current_user),
+                               db: sqlite3.Connection = Depends(get_db)):
+    if not user or user["role"] != "teacher":
+        return RedirectResponse("/login")
+    return _transfer_page(request, user, db)
+
+
+@app.get("/teacher/data-transfer/sample/{kind}")
+def teacher_data_transfer_sample(kind: str, user: dict = Depends(get_current_user),
+                                 db: sqlite3.Connection = Depends(get_db)):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    if kind not in CSV_HEADERS:
+        raise HTTPException(status_code=404)
+    rows = [CSV_HEADERS[kind], *CSV_SAMPLES[kind]]
+    return _csv_response(f"{kind}_sample.csv", rows)
+
+
+@app.get("/teacher/data-transfer/export/{kind}")
+def teacher_data_transfer_export(kind: str, user: dict = Depends(get_current_user),
+                                 db: sqlite3.Connection = Depends(get_db)):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    if kind not in CSV_HEADERS:
+        raise HTTPException(status_code=404)
+    rows = [CSV_HEADERS[kind]]
+    if kind == "students":
+        for r in db.execute(
+            """SELECT student_code, username, name, surname, grade, email, gender, phone, instagram
+               FROM users WHERE role = 'student' ORDER BY grade, surname, name, id"""
+        ).fetchall():
+            rows.append([r[key] or "" for key in CSV_HEADERS[kind][:-1]] + [""])
+    elif kind == "quiz_scores":
+        for r in db.execute(
+            """SELECT u.student_code, q.title as quiz_title, s.total_score
+               FROM submissions s JOIN quizzes q ON q.id = s.quiz_id
+               JOIN users u ON u.id = s.student_id
+               WHERE u.role = 'student' ORDER BY u.grade, u.surname, q.title"""
+        ).fetchall():
+            rows.append([r["student_code"] or "", r["quiz_title"] or "", r["total_score"]])
+    else:
+        for r in db.execute(
+            """SELECT u.student_code, t.name as term_name, t.school_year, l.title as lesson_title,
+                      o.final_100, o.ib_score, o.note
+               FROM term_grade_overrides o
+               JOIN users u ON u.id = o.student_id
+               JOIN academic_terms t ON t.id = o.term_id
+               JOIN lessons l ON l.id = o.lesson_id
+               ORDER BY t.start_date, u.grade, u.surname"""
+        ).fetchall():
+            rows.append([r["student_code"] or "", r["term_name"] or "", r["school_year"] or "",
+                         r["lesson_title"] or "", r["final_100"] if r["final_100"] is not None else "",
+                         r["ib_score"] if r["ib_score"] is not None else "", r["note"] or ""])
+    return _csv_response(f"{kind}.csv", rows)
+
+
+@app.post("/teacher/data-transfer/import/{kind}")
+async def teacher_data_transfer_import(kind: str, request: Request,
+                                       file: Optional[UploadFile] = File(None),
+                                       user: dict = Depends(get_current_user),
+                                       db: sqlite3.Connection = Depends(get_db)):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    if kind not in CSV_HEADERS:
+        raise HTTPException(status_code=404)
+    if not file or not file.filename:
+        return _transfer_page(request, user, db, error="Файл сонгоно уу.")
+    text = (await file.read()).decode("utf-8-sig", errors="replace")
+    rows = _csv_dicts(text)
+    if not rows:
+        return _transfer_page(request, user, db, error="CSV файл хоосон байна.")
+
+    imported, skipped = 0, 0
+    errors: list[str] = []
+
+    if kind == "students":
+        for index, row in enumerate(rows, start=2):
+            code = row.get("student_code", "").strip()
+            username = row.get("username", "").strip() or code
+            grade = row.get("grade", "").strip().lower()
+            email = row.get("email", "").strip().lower()
+            if not code or not username or not parse_grade(grade) or not email:
+                errors.append(f"Мөр {index}: код, нэвтрэх нэр, анги эсвэл имэйл буруу.")
+                skipped += 1
+                continue
+            password = (row.get("password") or "").strip()
+            values = (
+                username, password, grade,
+                row.get("name", "").strip(), row.get("surname", "").strip(), code, email,
+                row.get("gender", "").strip(), row.get("phone", "").strip(),
+                row.get("instagram", "").strip() or None,
+            )
+            existing = db.execute(
+                "SELECT id FROM users WHERE student_code = ? OR username = ?", (code, username)
+            ).fetchone()
+            try:
+                if existing:
+                    db.execute(
+                        """UPDATE users SET username = ?, grade = ?, name = ?, surname = ?, student_code = ?,
+                           email = ?, gender = ?, phone = ?, instagram = ?
+                           WHERE id = ?""",
+                        (values[0], *values[2:], existing["id"]),
+                    )
+                    if password:
+                        db.execute("UPDATE users SET password = ? WHERE id = ?", (password, existing["id"]))
+                else:
+                    db.execute(
+                        """INSERT INTO users
+                           (username, password, role, grade, name, surname, student_code, email,
+                            gender, phone, instagram)
+                           VALUES (?, ?, 'student', ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (values[0], password or "student123", *values[2:]),
+                    )
+                imported += 1
+            except sqlite3.IntegrityError as exc:
+                errors.append(f"Мөр {index}: давхардсан өгөгдөл ({exc}).")
+                skipped += 1
+
+    elif kind == "quiz_scores":
+        for index, row in enumerate(rows, start=2):
+            code = row.get("student_code", "").strip()
+            quiz_title = row.get("quiz_title", "").strip()
+            raw_score = row.get("total_score", "").strip()
+            if not code or not quiz_title or not raw_score:
+                errors.append(f"Мөр {index}: код, шалгалт эсвэл оноо хоосон.")
+                skipped += 1
+                continue
+            student = db.execute(
+                "SELECT id FROM users WHERE role = 'student' AND (student_code = ? OR username = ?)",
+                (code, code),
+            ).fetchone()
+            quiz = db.execute(
+                "SELECT id FROM quizzes WHERE lower(title) = lower(?) ORDER BY id DESC LIMIT 1",
+                (quiz_title,),
+            ).fetchone()
+            if not student or not quiz:
+                errors.append(f"Мөр {index}: сурагч эсвэл шалгалт олдсонгүй.")
+                skipped += 1
+                continue
+            score = _parse_int(raw_score, 0, 0, 8)
+            existing = db.execute(
+                "SELECT id FROM submissions WHERE quiz_id = ? AND student_id = ? ORDER BY id DESC LIMIT 1",
+                (quiz["id"], student["id"]),
+            ).fetchone()
+            if existing:
+                db.execute("UPDATE submissions SET total_score = ? WHERE id = ?", (score, existing["id"]))
+            else:
+                db.execute(
+                    """INSERT INTO submissions (quiz_id, student_id, responses_json, evaluation_json, total_score)
+                       VALUES (?, ?, '[]', '{}', ?)""",
+                    (quiz["id"], student["id"], score),
+                )
+            imported += 1
+
+    else:
+        for index, row in enumerate(rows, start=2):
+            code = row.get("student_code", "").strip()
+            term_name = row.get("term_name", "").strip()
+            lesson_title = row.get("lesson_title", "").strip()
+            if not code or not term_name or not lesson_title or not row.get("final_100", "").strip():
+                errors.append(f"Мөр {index}: код, улирал, хичээл эсвэл оноо хоосон.")
+                skipped += 1
+                continue
+            student = db.execute(
+                "SELECT id FROM users WHERE role = 'student' AND (student_code = ? OR username = ?)",
+                (code, code),
+            ).fetchone()
+            sql = "SELECT id FROM academic_terms WHERE lower(name) = lower(?)"
+            params: list = [term_name]
+            if row.get("school_year", "").strip():
+                sql += " AND lower(school_year) = lower(?)"
+                params.append(row["school_year"].strip())
+            sql += " ORDER BY start_date DESC LIMIT 1"
+            term = db.execute(sql, params).fetchone()
+            lesson = db.execute(
+                "SELECT id FROM lessons WHERE lower(title) = lower(?) ORDER BY id DESC LIMIT 1",
+                (lesson_title,),
+            ).fetchone()
+            if not student or not term or not lesson:
+                errors.append(f"Мөр {index}: сурагч, улирал эсвэл хичээл олдсонгүй.")
+                skipped += 1
+                continue
+            final_100 = max(0.0, min(100.0, _round1(row["final_100"])))
+            ib_raw = row.get("ib_score", "").strip()
+            ib_score = max(0.0, min(8.0, _round1(ib_raw))) if ib_raw else round(final_100 / 12.5, 1)
+            db.execute(
+                """INSERT INTO term_grade_overrides
+                   (term_id, student_id, lesson_id, final_100, ib_score, note, updated_by, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(term_id, student_id, lesson_id)
+                   DO UPDATE SET final_100 = excluded.final_100, ib_score = excluded.ib_score,
+                                 note = excluded.note, updated_by = excluded.updated_by,
+                                 updated_at = excluded.updated_at""",
+                (term["id"], student["id"], lesson["id"], final_100, ib_score,
+                 row.get("note", "").strip(), user["id"], int(time.time())),
+            )
+            imported += 1
+
+    db.commit()
+    result = {
+        "kind": CSV_LABELS[kind], "imported": imported, "skipped": skipped, "errors": errors[:20],
+    }
+    return _transfer_page(request, user, db, result=result)

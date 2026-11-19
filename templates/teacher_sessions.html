@@ -4,9 +4,12 @@
   <div>
     <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
     <h1 class="text-2xl font-black mt-1">Хичээлийн өдөр / Ирц ба шалгуур</h1>
+    <p class="text-sm text-slate-500">Мөрийн <b>Засах</b> товчоор огноо, сэдэв, хичээл, ангийг өөрчилнө. Ирц/шалгуурын оноо оруулах бол огноо дээр дарна.</p>
   </div>
   {% if request.query_params.get('generated') is not none %}<div class="text-sm text-emerald-600">{{ request.query_params.get('generated') }} шинэ хичээлийн өдөр үүслээ.</div>{% endif %}
   {% if request.query_params.get('created') %}<div class="text-sm text-emerald-600">Хичээлийн өдөр нэмэгдлээ.</div>{% endif %}
+  {% if request.query_params.get('updated') %}<div class="text-sm text-emerald-600">Хичээлийн өдөр шинэчлэгдлээ.</div>{% endif %}
+  {% if request.query_params.get('error') %}<div class="text-sm text-rose-600">Өгөгдөл буруу эсвэл давхардсан байна.</div>{% endif %}
 
   <div class="grid md:grid-cols-2 gap-4">
     <form method="POST" action="/teacher/timetable/generate" class="bg-white p-5 rounded-2xl border">
@@ -32,19 +35,45 @@
     <button class="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm">Шүүх</button>
   </form>
 
-  <div class="bg-white rounded-2xl border overflow-hidden">
+  <div class="bg-white rounded-2xl border overflow-x-auto">
     <table class="w-full text-sm">
-      <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="p-3 text-left">Огноо</th><th class="p-3 text-left">Улирал</th><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Анги</th><th class="p-3 text-left">Сэдэв</th><th class="p-3"></th></tr></thead>
+      <thead class="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th class="p-3 text-left">Огноо</th><th class="p-3 text-left">Улирал</th><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Анги</th><th class="p-3 text-left">Сэдэв</th><th class="p-3 text-right">Үйлдэл</th></tr></thead>
       <tbody>
         {% for s in sessions %}
         <tr class="border-t">
-          <td class="p-3 font-semibold"><a href="/teacher/sessions/{{ s.id }}" class="text-[#714B67] hover:underline">{{ s.date }}</a></td>
-          <td class="p-3">{{ s.term_name }}</td><td class="p-3">{{ s.lesson_title }}</td><td class="p-3">{{ s.grade_name }}</td><td class="p-3">{{ s.topic or '—' }}</td>
-          <td class="p-3 text-right">
-            <form method="POST" action="/teacher/sessions/{{ s.id }}/delete">
-              <input type="hidden" name="term_id" value="{{ selected_term }}">
-              <button class="text-rose-600 hover:underline text-xs">Хасах</button>
-            </form>
+          <td class="p-3 font-semibold">
+            <a href="/teacher/sessions/{{ s.id }}" class="inline-view-only text-[#714B67] hover:underline">{{ s.date }}</a>
+            <span class="inline-edit-only"><input form="sess-edit-{{ s.id }}" type="date" name="date" value="{{ s.date }}" class="px-2 py-1 border rounded"></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ s.term_name }}</span>
+            <span class="inline-edit-only"><select form="sess-edit-{{ s.id }}" name="term_id" class="px-2 py-1 border rounded w-28">{% for t in terms %}<option value="{{ t.id }}" {% if t.id == s.term_id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ s.lesson_title }}</span>
+            <span class="inline-edit-only"><select form="sess-edit-{{ s.id }}" name="lesson_id" class="px-2 py-1 border rounded w-28">{% for l in lessons %}<option value="{{ l.id }}" {% if l.id == s.lesson_id %}selected{% endif %}>{{ l.title }}</option>{% endfor %}</select></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ s.grade_name }}</span>
+            <span class="inline-edit-only"><select form="sess-edit-{{ s.id }}" name="grade_id" class="px-2 py-1 border rounded w-20">{% for g in grades %}<option value="{{ g.id }}" {% if g.id == s.grade_id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ s.topic or '—' }}</span>
+            <span class="inline-edit-only"><input form="sess-edit-{{ s.id }}" name="topic" value="{{ s.topic or '' }}" class="px-2 py-1 border rounded w-32"></span>
+          </td>
+          <td class="p-3 text-right whitespace-nowrap">
+            <form id="sess-edit-{{ s.id }}" method="POST" action="/teacher/sessions/{{ s.id }}/edit" class="hidden"></form>
+            <span class="inline-view-only">
+              <button type="button" onclick="editRow(this)" class="text-[#714B67] hover:underline text-xs">Засах</button>
+              <form method="POST" action="/teacher/sessions/{{ s.id }}/delete" class="inline">
+                <input type="hidden" name="term_id" value="{{ selected_term }}">
+                <button class="text-rose-600 hover:underline text-xs ml-2">Хасах</button>
+              </form>
+            </span>
+            <span class="inline-edit-only">
+              <button type="submit" form="sess-edit-{{ s.id }}" class="text-emerald-700 hover:underline text-xs">Хадгалах</button>
+              <button type="button" onclick="cancelEdit(this)" class="text-slate-500 hover:underline text-xs ml-2">Цуцлах</button>
+            </span>
           </td>
         </tr>
         {% endfor %}

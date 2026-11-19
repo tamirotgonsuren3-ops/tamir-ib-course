@@ -4,9 +4,10 @@
   <div>
     <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
     <h1 class="text-2xl font-black mt-1">IB Unit Plan бүртгэх</h1>
-    <p class="text-sm text-slate-500">Unit plan нь хичээлд хамаарна. Үнэлгээ хийхэд A-D шалгуур, ATL чадварыг тодорхойлно.</p>
+    <p class="text-sm text-slate-500">Unit plan нь хичээлд хамаарна. Үнэлгээ хийхэд A-D шалгуур, ATL чадварыг тодорхойлно. Мөрийн <b>Засах</b> товчоор өөрчилнө.</p>
   </div>
   {% if request.query_params.get('created') %}<div class="text-sm text-emerald-600">Unit plan нэмэгдлээ.</div>{% endif %}
+  {% if request.query_params.get('updated') %}<div class="text-sm text-emerald-600">Unit plan шинэчлэгдлээ.</div>{% endif %}
 
   <form method="POST" action="/teacher/setup/unit-plans" class="bg-white p-5 rounded-2xl border grid md:grid-cols-3 gap-3">
     <div>
@@ -23,22 +24,50 @@
     <button class="bg-[#714B67] text-white px-5 py-2 rounded-lg text-sm md:col-span-3">Бүртгэх</button>
   </form>
 
-  <div class="bg-white rounded-2xl border overflow-hidden">
+  <div class="bg-white rounded-2xl border overflow-x-auto">
     <table class="w-full text-sm">
       <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
-        <tr><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Unit</th><th class="p-3 text-left">ATL</th><th class="p-3 text-left">Дээд оноо</th><th class="p-3"></th></tr>
+        <tr><th class="p-3 text-left">Хичээл</th><th class="p-3 text-left">Unit</th><th class="p-3 text-left">ATL</th><th class="p-3 text-left">Дээд оноо</th><th class="p-3 text-right">Үйлдэл</th></tr>
       </thead>
       <tbody>
         {% for p in plans %}
         <tr class="border-t">
-          <td class="p-3">{{ p.lesson_title }}</td>
-          <td class="p-3 font-semibold">{{ p.unit_code or 'Unit' }} — {{ p.title }}</td>
-          <td class="p-3">{{ p.atl_skills or '—' }}</td>
-          <td class="p-3">{{ p.max_score }}</td>
-          <td class="p-3 text-right">
-            <form method="POST" action="/teacher/setup/unit-plans/{{ p.id }}/delete">
-              <button class="text-rose-600 hover:underline text-xs">Хасах</button>
-            </form>
+          <td class="p-3">
+            <span class="inline-view-only">{{ p.lesson_title }}</span>
+            <span class="inline-edit-only">
+              <select form="plan-edit-{{ p.id }}" name="lesson_id" class="px-2 py-1 border rounded w-32">
+                {% for l in lessons %}<option value="{{ l.id }}" {% if l.id == p.lesson_id %}selected{% endif %}>{{ l.title }}</option>{% endfor %}
+              </select>
+            </span>
+          </td>
+          <td class="p-3 font-semibold">
+            <span class="inline-view-only">{{ p.unit_code or 'Unit' }} — {{ p.title }}</span>
+            <span class="inline-edit-only">
+              <input form="plan-edit-{{ p.id }}" name="unit_code" value="{{ p.unit_code or '' }}" placeholder="U1" class="px-2 py-1 border rounded w-14 mb-1">
+              <input form="plan-edit-{{ p.id }}" name="title" value="{{ p.title }}" class="px-2 py-1 border rounded w-36">
+              <input form="plan-edit-{{ p.id }}" type="hidden" name="description" value="{{ p.description or '' }}">
+            </span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ p.atl_skills or '—' }}</span>
+            <span class="inline-edit-only"><input form="plan-edit-{{ p.id }}" name="atl_skills" value="{{ p.atl_skills or '' }}" class="px-2 py-1 border rounded w-28"></span>
+          </td>
+          <td class="p-3">
+            <span class="inline-view-only">{{ p.max_score }}</span>
+            <span class="inline-edit-only"><input form="plan-edit-{{ p.id }}" name="max_score" value="{{ p.max_score }}" class="px-2 py-1 border rounded w-14"></span>
+          </td>
+          <td class="p-3 text-right whitespace-nowrap">
+            <form id="plan-edit-{{ p.id }}" method="POST" action="/teacher/setup/unit-plans/{{ p.id }}/edit" class="hidden"></form>
+            <span class="inline-view-only">
+              <button type="button" onclick="editRow(this)" class="text-[#714B67] hover:underline text-xs">Засах</button>
+              <form method="POST" action="/teacher/setup/unit-plans/{{ p.id }}/delete" class="inline">
+                <button class="text-rose-600 hover:underline text-xs ml-2">Хасах</button>
+              </form>
+            </span>
+            <span class="inline-edit-only">
+              <button type="submit" form="plan-edit-{{ p.id }}" class="text-emerald-700 hover:underline text-xs">Хадгалах</button>
+              <button type="button" onclick="cancelEdit(this)" class="text-slate-500 hover:underline text-xs ml-2">Цуцлах</button>
+            </span>
           </td>
         </tr>
         {% endfor %}
