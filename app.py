@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from quiz_engine import generate_quiz, score_quiz
+from topic_quizzes import TOPIC_QUIZZES, build_topic_quiz
 from data_analysis_engine import grade_document, extract_docx
 from homework_engine import (
     grade_submission,
@@ -1133,7 +1134,7 @@ def _report_pdf(report: dict) -> bytes:
           [24, 126, 20])
     pdf.ln(2)
 
-    heading("Сахилга бат (хасалт, баримттай)")
+    heading(f"Сахилга бат (хасалт, баримт зурагтай: {sum(1 for r in report['discipline'] if r.get('photo_file'))})")
     table(["Огноо", "Тайлбар", "Оноо", "Баримт зураг"],
           [[r["date"], r["note"], r.get("score_delta", r.get("points", "")),
             "тийм" if r.get("photo_file") else "-"]
@@ -1464,6 +1465,77 @@ def create_quiz_with_gemini(
     )
     db.commit()
     return RedirectResponse("/teacher?quiz_created=1", status_code=status.HTTP_302_FOUND)
+
+
+@app.get("/teacher/topic-quizzes", response_class=HTMLResponse)
+def topic_quizzes_page(
+    request: Request,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    lessons = db.execute("SELECT id, title FROM lessons ORDER BY title").fetchall()
+    topics = [
+        {
+            "key": key,
+            "title": value["title"],
+            "description": value["description"],
+            "question_count": len(value["questions"]),
+            "option_count": len(value["questions"][0]["options"]),
+        }
+        for key, value in TOPIC_QUIZZES.items()
+    ]
+    return templates.TemplateResponse(
+        request=request,
+        name="teacher_topic_quizzes.html",
+        context={
+            "user": user,
+            "lessons": lessons,
+            "topics": topics,
+            "created": request.query_params.get("created"),
+            "error": request.query_params.get("error"),
+        },
+    )
+
+
+@app.post("/teacher/topic-quizzes/create")
+def create_topic_quiz(
+    topic: str = Form(...),
+    lesson_id: int = Form(...),
+    quiz_title: str = Form(""),
+    time_limit_minutes: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    if topic not in TOPIC_QUIZZES:
+        return RedirectResponse("/teacher/topic-quizzes?error=unknown_topic", status_code=status.HTTP_302_FOUND)
+
+    c = db.cursor()
+    c.execute("SELECT id FROM lessons WHERE id = ?", (lesson_id,))
+    if not c.fetchone():
+        return RedirectResponse("/teacher/topic-quizzes?error=invalid_lesson", status_code=status.HTTP_302_FOUND)
+
+    built = build_topic_quiz(topic)
+    title = (quiz_title or "").strip() or built["quiz_title"]
+    tl = None
+    if time_limit_minutes is not None and str(time_limit_minutes).strip():
+        try:
+            tl = int(str(time_limit_minutes).strip())
+            if tl < 1 or tl > 600:
+                tl = None
+        except ValueError:
+            tl = None
+
+    c.execute(
+        "INSERT INTO quizzes (lesson_id, title, questions_json, image_path, created_by, is_active, time_limit_minutes) "
+        "VALUES (?, ?, ?, NULL, ?, 1, ?)",
+        (lesson_id, title, json.dumps(built), user["id"], tl),
+    )
+    db.commit()
+    return RedirectResponse("/teacher/topic-quizzes?created=1", status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/teacher/quiz/{quiz_id}/toggle")
@@ -3683,7 +3755,7 @@ def teacher_data_analysis_page(
                    (SELECT COUNT(*) FROM data_analysis_submissions s
                     WHERE s.assignment_id = a.id AND s.status = 'graded') as graded_subs
             FROM data_analysis_assignments a
-            JOIN lessons l ON l.id = a.lesson_id JOIN grades g ON g.id = a.grade_id
+            LEFT JOIN lessons l ON l.id = a.lesson_id JOIN grades g ON g.id = a.grade_id
             JOIN academic_terms t ON t.id = a.term_id
             LEFT JOIN ib_unit_plans p ON p.id = a.unit_plan_id
             WHERE {where} ORDER BY a.id DESC""",
@@ -3727,13 +3799,22 @@ async def teacher_data_analysis_create(request: Request, user: dict = Depends(ge
             shutil.copyfileobj(csv_file.file, buf)
     term_id = _parse_int(form.get("term_id"), 0)
     grade_id = _parse_int(form.get("grade_id"), 0)
+    lesson_id = _parse_int(form.get("lesson_id"), 0)
+    if not term_id or not grade_id or not lesson_id:
+        return RedirectResponse("/teacher/data-analysis?error=missing_selection", status_code=status.HTTP_302_FOUND)
+    if not db.execute("SELECT 1 FROM academic_terms WHERE id = ?", (term_id,)).fetchone():
+        return RedirectResponse("/teacher/data-analysis?error=invalid_selection", status_code=status.HTTP_302_FOUND)
+    if not db.execute("SELECT 1 FROM grades WHERE id = ?", (grade_id,)).fetchone():
+        return RedirectResponse("/teacher/data-analysis?error=invalid_selection", status_code=status.HTTP_302_FOUND)
+    if not db.execute("SELECT 1 FROM lessons WHERE id = ?", (lesson_id,)).fetchone():
+        return RedirectResponse("/teacher/data-analysis?error=invalid_selection", status_code=status.HTTP_302_FOUND)
     db.execute(
         """INSERT INTO data_analysis_assignments
            (term_id, lesson_id, grade_id, unit_plan_id, title, description, max_score, csv_path,
             due_date, provider, model, created_by, created_at, is_active)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
         (
-            term_id, _parse_int(form.get("lesson_id"), 0), grade_id,
+            term_id, lesson_id, grade_id,
             _parse_int(form.get("unit_plan_id"), 0) or None,
             title, str(form.get("description") or "").strip(),
             _parse_int(form.get("max_score"), 20, 1, 1000), csv_path,

@@ -52,7 +52,7 @@
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
     <div class="card bg-white p-4 rounded-2xl border"><div class="text-xs text-slate-500">Ирц (ирсэн/хоцорсон/тасалсан)</div><div class="text-lg font-black text-teal-700">{{ report.summary.present }} / {{ report.summary.late }} / {{ report.summary.absent }}</div></div>
     <div class="card bg-white p-4 rounded-2xl border"><div class="text-xs text-slate-500">Идэвх / нэмэлт оноо</div><div class="text-lg font-black text-emerald-700">+{{ report.summary.activity_total }}</div></div>
-    <div class="card bg-white p-4 rounded-2xl border"><div class="text-xs text-slate-500">Сахилгын хасалт</div><div class="text-lg font-black text-rose-700">{{ report.summary.discipline_total }}</div></div>
+    <div class="card bg-white p-4 rounded-2xl border"><div class="text-xs text-slate-500">Сахилгын хасалт · баримт зураг</div><div class="text-lg font-black text-rose-700">{{ report.summary.discipline_total }} · {{ report.discipline|selectattr('photo_url')|list|length }} зураг</div></div>
     <div class="card bg-white p-4 rounded-2xl border"><div class="text-xs text-slate-500">Даалгавар / шалгалт</div><div class="text-lg font-black text-indigo-700">{{ report.summary.homework_total }} / {{ report.summary.exam_average }}</div></div>
   </div>
 

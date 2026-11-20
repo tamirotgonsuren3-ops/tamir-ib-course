@@ -3,7 +3,8 @@
 <div class="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-sm border">
   <div class="border-b pb-4 mb-6 flex flex-wrap items-start justify-between gap-3">
     <div>
-      <span class="text-xs bg-purple-100 text-[#714B67] font-bold px-2 py-1 rounded">8 асуулт · A-D шалгуур</span>
+      {% set option_count = quiz_data.questions[0].options|length if quiz_data.questions else 0 %}
+      <span class="text-xs bg-purple-100 text-[#714B67] font-bold px-2 py-1 rounded">{{ quiz_data.questions|length }} асуулт · {{ option_count }} хариулт · A-D шалгуур</span>
       <h1 class="text-2xl font-bold mt-2">{{ quiz.title }}</h1>
     </div>
     {% if time_remaining is not none %}

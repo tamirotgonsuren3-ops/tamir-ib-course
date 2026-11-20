@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <a href="/teacher" class="text-sm text-slate-500 hover:underline">← Багшийн хуудас</a>
+      <h1 class="text-2xl font-black text-[#714B67] mt-1">Бэлэн сэдвийн тест үүсгэх</h1>
+      <p class="text-sm text-slate-500">Асуулт бүр 4 хариулттай, зөвхөн 1 нь зөв. Хичээл сонгосны дараа шууд нийтлэгдэнэ.</p>
+    </div>
+  </div>
+
+  {% if created %}
+  <div class="p-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-semibold">
+    ✓ Тест үүслээ. Сурагчид «Шалгалтууд» хэсгээс өгөх боломжтой.
+  </div>
+  {% endif %}
+  {% if error %}
+  <div class="p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-sm font-semibold">
+    {% if error == 'invalid_lesson' %}Хичээл сонгоно уу.{% elif error == 'unknown_topic' %}Сэдэв олдсонгүй.{% else %}Тест үүсгэж чадсангүй.{% endif %}
+  </div>
+  {% endif %}
+  {% if not lessons %}
+  <div class="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-sm">
+    Эхлээд дор хаяж нэг хичээл нийтлэх шаардлагатай.
+  </div>
+  {% endif %}
+
+  <div class="grid md:grid-cols-2 gap-6">
+    {% for topic in topics %}
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+      <span class="text-xs bg-indigo-100 text-indigo-800 font-bold px-2 py-1 rounded">
+        {{ topic.question_count }} асуулт · {{ topic.option_count }} хариулт · 1 зөв
+      </span>
+      <h2 class="text-lg font-bold mt-3 text-slate-800">{{ topic.title }}</h2>
+      <p class="text-xs text-slate-500 mt-2 mb-4">{{ topic.description }}</p>
+      <form action="/teacher/topic-quizzes/create" method="POST" class="space-y-3">
+        <input type="hidden" name="topic" value="{{ topic.key }}">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Холбогдох хичээл</label>
+          <select name="lesson_id" required class="w-full px-3 py-2 border rounded-xl text-sm bg-white">
+            <option value="">-- Хичээл сонгох --</option>
+            {% for l in lessons %}<option value="{{ l.id }}">{{ l.title }}</option>{% endfor %}
+          </select>
+        </div>
+        <input type="text" name="quiz_title" placeholder="Гарчиг (хоосон бол сэдвийн нэр)" class="w-full px-3 py-2 border rounded-xl text-sm">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Хугацаа (минут, хоосон = хязгааргүй)</label>
+          <input type="number" name="time_limit_minutes" min="1" max="600" placeholder="жишээ: 20" class="w-full px-3 py-2 border rounded-xl text-sm">
+        </div>
+        <button type="submit" {% if not lessons %}disabled{% endif %} class="w-full py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+          Тест үүсгэх
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

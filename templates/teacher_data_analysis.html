@@ -6,22 +6,45 @@
     <h1 class="text-2xl font-black mt-1">Data analysis бие даалт</h1>
     <p class="text-sm text-slate-500">Багш жишээ CSV оруулна. Сурагч Word (table, chart, text) тайлан илгээнэ. AI IB шалгуураар үнэлнэ. Мөрийн <b>Засах</b> товчоор өөрчилнө.</p>
   </div>
-  {% if request.query_params.get('created') %}<div class="text-sm text-emerald-600">Даалгавар үүслээ.</div>{% endif %}
-  {% if request.query_params.get('updated') %}<div class="text-sm text-emerald-600">Даалгавар шинэчлэгдлээ.</div>{% endif %}
+  {% set da_error = request.query_params.get('error') %}
+  <div id="da-alerts" class="space-y-2" aria-live="polite">
+    {% if request.query_params.get('created') %}
+    <div data-da-success class="p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 text-sm font-semibold flex items-center gap-2">
+      <span class="text-lg">✓</span> Generated — даалгавар амжилттай үүслээ.
+    </div>
+    {% endif %}
+    {% if request.query_params.get('updated') %}
+    <div data-da-success class="p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 text-sm font-semibold flex items-center gap-2">
+      <span class="text-lg">✓</span> Даалгавар шинэчлэгдлээ.
+    </div>
+    {% endif %}
+    {% if da_error %}
+    <div class="p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-900 text-sm">
+      {% if da_error == 'missing_title' %}Гарчиг оруулна уу.
+      {% elif da_error == 'invalid_csv' %}Зөвхөн .csv эсвэл .txt файл оруулна уу.
+      {% elif da_error == 'missing_selection' %}Хичээл, улирал, ангийг сонгоно уу.
+      {% else %}Улирал, анги эсвэл хичээл буруу байна.{% endif %}
+    </div>
+    {% endif %}
+    <div id="da-generating" class="hidden p-3 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-900 text-sm font-semibold flex items-center gap-3">
+      <svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+      Generating… даалгавар үүсгэж байна, хүлээнэ үү.
+    </div>
+  </div>
 
-  <form method="POST" action="/teacher/data-analysis" enctype="multipart/form-data" class="bg-white p-5 rounded-2xl border grid md:grid-cols-3 gap-3">
+  <form method="POST" action="/teacher/data-analysis" enctype="multipart/form-data" id="da-create-form" class="bg-white p-5 rounded-2xl border grid md:grid-cols-3 gap-3">
     <input type="hidden" name="term_id" value="{{ selected_term }}">
     <input type="hidden" name="grade_id" value="{{ selected_grade }}">
     <div class="md:col-span-2"><label class="block text-xs text-slate-500 mb-1">Гарчиг</label><input name="title" required placeholder="Борлуулалтын өгөгдөлд дүн шинжилгээ" class="w-full px-3 py-2 border rounded-lg"></div>
     <div><label class="block text-xs text-slate-500 mb-1">Дээд оноо</label><input name="max_score" value="20" class="w-full px-3 py-2 border rounded-lg"></div>
     <div class="md:col-span-3"><label class="block text-xs text-slate-500 mb-1">Даалгаврын тайлбар</label><textarea name="description" rows="3" class="w-full px-3 py-2 border rounded-lg" placeholder="CSV-г ашиглан хүснэгт, график бичиж дүгнэлт хийх..."></textarea></div>
-    <div><label class="block text-xs text-slate-500 mb-1">Хичээл</label><select name="lesson_id" class="w-full px-2 py-2 border rounded-lg">{% for l in lessons %}<option value="{{ l.id }}">{{ l.title }}</option>{% endfor %}</select></div>
+    <div><label class="block text-xs text-slate-500 mb-1">Хичээл</label><select name="lesson_id" class="w-full px-2 py-2 border rounded-lg">{% for l in lessons %}<option value="{{ l.id }}">{{ l.title }}</option>{% endfor %}</select>{% if not lessons %}<p class="text-xs text-rose-600 mt-1">Энэ ангид хичээл байхгүй. Эхлээд хичээл онооно уу.</p>{% endif %}</div>
     <div><label class="block text-xs text-slate-500 mb-1">Unit plan</label><select name="unit_plan_id" class="w-full px-2 py-2 border rounded-lg"><option value="0">—</option>{% for p in unit_plans %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></div>
     <div><label class="block text-xs text-slate-500 mb-1">Хугацаа</label><input type="date" name="due_date" class="w-full px-2 py-2 border rounded-lg"></div>
     <div><label class="block text-xs text-slate-500 mb-1">Жишээ CSV</label><input type="file" name="csv_file" accept=".csv,.txt" class="w-full text-xs"></div>
     <div><label class="block text-xs text-slate-500 mb-1">AI provider</label><select name="provider" class="w-full px-2 py-2 border rounded-lg"><option value="gemini">Gemini</option><option value="deepseek">DeepSeek</option><option value="ollama">Ollama</option></select></div>
     <div><label class="block text-xs text-slate-500 mb-1">Model (хоосон бол default)</label><input name="model" class="w-full px-2 py-2 border rounded-lg"></div>
-    <button class="bg-[#714B67] text-white px-5 py-2 rounded-lg text-sm md:col-span-3">Даалгавар үүсгэх</button>
+    <button id="da-create-submit" class="bg-[#714B67] text-white px-5 py-2 rounded-lg text-sm md:col-span-3 disabled:opacity-60">Даалгавар үүсгэх</button>
   </form>
 
   <form method="GET" action="/teacher/data-analysis" class="bg-white p-4 rounded-2xl border flex gap-3 items-end">
@@ -45,7 +68,7 @@
             </span>
           </td>
           <td class="p-3">
-            <span class="inline-view-only">{{ a.lesson_title }} · {{ a.grade_name }}</span>
+            <span class="inline-view-only">{{ a.lesson_title or 'Хичээл сонгоогүй' }} · {{ a.grade_name }}</span>
             <span class="inline-edit-only space-y-1">
               <select form="da-edit-{{ a.id }}" name="lesson_id" class="px-2 py-1 border rounded w-full text-xs">{% for l in lessons %}<option value="{{ l.id }}" {% if l.id == a.lesson_id %}selected{% endif %}>{{ l.title }}</option>{% endfor %}</select>
               <select form="da-edit-{{ a.id }}" name="grade_id" class="px-2 py-1 border rounded w-full text-xs">{% for g in grades %}<option value="{{ g.id }}" {% if g.id == a.grade_id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select>
@@ -87,4 +110,24 @@
     </table>
   </div>
 </div>
+<script>
+  (function () {
+    const form = document.getElementById('da-create-form');
+    const generating = document.getElementById('da-generating');
+    const button = document.getElementById('da-create-submit');
+    if (form) {
+      form.addEventListener('submit', function () {
+        if (generating) { generating.classList.remove('hidden'); }
+        if (button) { button.disabled = true; button.textContent = 'Үүсгэж байна…'; }
+      });
+    }
+    const success = document.querySelector('[data-da-success]');
+    if (success) {
+      setTimeout(function () {
+        success.style.transition = 'opacity .6s ease';
+        success.style.opacity = '0';
+      }, 5000);
+    }
+  })();
+</script>
 {% endblock %}
