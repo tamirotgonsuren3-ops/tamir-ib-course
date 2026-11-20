@@ -4,7 +4,7 @@
   <div>
     <a href="/teacher/setup" class="text-sm text-[#714B67] hover:underline">&larr; Тохиргоо</a>
     <h1 class="text-2xl font-black mt-1">Улирлын дүн — багш засах</h1>
-    <p class="text-xs text-slate-500">Тооцоо: A-D {{ (weights.criteria * 100) | int }}% + ирц/ATL {{ (weights.attendance * 100) | int }}% + data analysis {{ (weights.data_analysis * 100) | int }}% + сахилгын хасалт. Хоосон үлдээвэл тооцсон дүн хэвээр үлдэнэ.</p>
+    <p class="text-xs text-slate-500">Тооцоо: A-D {{ (weights.criteria * 100) | int }}% + ирц/ATL {{ (weights.attendance * 100) | int }}% + data analysis {{ (weights.data_analysis * 100) | int }}% + гэрийн даалгавар {{ (weights.homework * 100) | int }}% + шалгалт {{ (weights.exams * 100) | int }}% + хичээлийн хасалт + сахилга / урамшууллын бүртгэл (эерэг нэмэх, сөрөг хасах). Засах талбарт сахилгаас <b>өмнөх</b> дүн бичнэ; эцсийн дүнд сахилгын оноо нэмэгдэнэ. Хоосон үлдээвэл тооцсон дүн хэвээр үлдэнэ.</p>
   </div>
   {% if request.query_params.get('saved') is not none %}<div class="text-sm text-emerald-600">{{ request.query_params.get('saved') }} дүн хадгалагдлаа.</div>{% endif %}
 
@@ -24,8 +24,8 @@
         <thead class="bg-slate-50 text-slate-500 uppercase">
           <tr>
             <th class="p-2 text-left">Сурагч</th><th class="p-2">Өдөр</th>
-            <th class="p-2">Ирц {{ 'ATL' }}</th><th class="p-2">A-D IB</th><th class="p-2">Data analysis</th><th class="p-2">Хасалт</th>
-            <th class="p-2">Тооцсон 100</th><th class="p-2">IB оновчилсон</th><th class="p-2">100 оноо</th><th class="p-2">Тайлбар</th>
+            <th class="p-2">Ирц {{ 'ATL' }}</th><th class="p-2">A-D IB</th><th class="p-2">Даалгавар</th><th class="p-2">Шалгалт</th><th class="p-2">Data analysis</th><th class="p-2">Хичээлийн хасалт</th>
+            <th class="p-2">Сахилга / идэвх</th><th class="p-2">Тооцсон 100</th><th class="p-2">IB (сахилгаас өмнө)</th><th class="p-2">100 (сахилгаас өмнө)</th><th class="p-2">Эцсийн 100</th><th class="p-2">Тайлбар</th>
           </tr>
         </thead>
         <tbody>
@@ -35,11 +35,15 @@
             <td class="p-2 text-center">{{ s.sessions }}</td>
             <td class="p-2 text-center">{{ s.attendance_points }}/{{ s.attendance_max }}<div class="text-slate-400">{{ s.attendance_ib }} IB</div></td>
             <td class="p-2 text-center">{{ s.criteria_ib }} / 8</td>
+            <td class="p-2 text-center">{{ s.homework_score }}/{{ s.homework_max }}<div class="text-slate-400">{{ s.homework_100 }}%</div></td>
+            <td class="p-2 text-center">{{ s.exam_average }} / 8<div class="text-slate-400">{{ s.exam_100 }}%</div></td>
             <td class="p-2 text-center">{{ s.da_score }}/{{ s.da_max }}<div class="text-slate-400">{{ s.da_ib }} IB</div></td>
             <td class="p-2 text-center">{{ s.conduct_points }}</td>
+            <td class="p-2 text-center font-semibold {% if s.discipline_points < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">{% if s.discipline_points > 0 %}+{% endif %}{{ s.discipline_points }}</td>
             <td class="p-2 text-center">{{ s.computed_100 }}</td>
-            <td class="p-2 text-center"><input name="ib_{{ s.id }}" value="{{ s.final_ib }}" class="w-14 px-1 py-1 border rounded text-center"></td>
-            <td class="p-2 text-center"><input name="final_{{ s.id }}" value="{{ s.final_100 }}" class="w-16 px-1 py-1 border rounded text-center {% if s.overridden %}bg-amber-50{% endif %}"></td>
+            <td class="p-2 text-center"><input name="ib_{{ s.id }}" value="{{ s.override_base_ib }}" class="w-14 px-1 py-1 border rounded text-center"></td>
+            <td class="p-2 text-center"><input name="final_{{ s.id }}" value="{{ s.override_base_100 }}" class="w-16 px-1 py-1 border rounded text-center {% if s.overridden %}bg-amber-50{% endif %}"></td>
+            <td class="p-2 text-center font-black text-[#714B67]">{{ s.final_100 }}</td>
             <td class="p-2"><input name="note_{{ s.id }}" value="{{ s.override_note }}" class="w-24 px-1 py-1 border rounded"></td>
           </tr>
           {% endfor %}

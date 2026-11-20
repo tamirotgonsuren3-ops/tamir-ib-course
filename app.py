@@ -72,7 +72,13 @@ templates.env.filters["datetime"] = ts_to_datetime
 
 WEEKDAY_NAMES = ("Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба", "Ням")
 CRITERION_LETTERS = ("A", "B", "C", "D")
-TERM_WEIGHTS = {"criteria": 0.5, "attendance": 0.2, "data_analysis": 0.3}
+TERM_WEIGHTS = {
+    "criteria": 0.4,
+    "attendance": 0.2,
+    "data_analysis": 0.2,
+    "homework": 0.1,
+    "exams": 0.1,
+}
 
 
 def _round1(value) -> float:
@@ -100,6 +106,33 @@ def _safe_upload_name(original, prefix: str, allowed: set[str]) -> str | None:
 
 def _is_upload(value) -> bool:
     return hasattr(value, "filename") and hasattr(value, "file")
+
+
+def _save_evidence_photo(value) -> str | None:
+    if not _is_upload(value) or not getattr(value, "filename", None):
+        return None
+    safe_name = _safe_upload_name(
+        value.filename, "evidence", {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+    )
+    if not safe_name:
+        return None
+    path = os.path.join(UPLOAD_PHOTOS, safe_name)
+    with open(path, "wb") as buf:
+        shutil.copyfileobj(value.file, buf)
+    return safe_name
+
+
+def _photo_url(photo_path) -> str:
+    name = os.path.basename(str(photo_path or ""))
+    return f"/photo/{name}" if name else ""
+
+
+def _photo_file(photo_path) -> str | None:
+    name = os.path.basename(str(photo_path or ""))
+    if not name:
+        return None
+    path = os.path.join(UPLOAD_PHOTOS, name)
+    return path if os.path.isfile(path) else None
 
 
 def _parse_date(value: str | None):
@@ -291,6 +324,7 @@ def init_db():
         created_by INTEGER,
         created_at INTEGER
     )''')
+    _ensure_columns(c, "discipline_records", {"photo_path": "photo_path TEXT"})
     c.execute(
         "CREATE INDEX IF NOT EXISTS idx_discipline_student_date ON discipline_records(student_id, date)"
     )
@@ -572,6 +606,81 @@ def _session_ids(db: sqlite3.Connection, term_id: int, lesson_id: int, grade_id:
     ).fetchall()]
 
 
+def _term_homework_stats(db: sqlite3.Connection, term_id: int, student_id: int) -> dict:
+    term_row = db.execute(
+        "SELECT start_date, end_date FROM academic_terms WHERE id = ?", (term_id,)
+    ).fetchone()
+    term = dict(term_row) if term_row else None
+    score = maximum = 0.0
+    count = 0
+    for row in db.execute(
+        """SELECT h.due_date, hs.score, hs.max_score, hs.submitted_at
+           FROM homework_submissions hs JOIN homework h ON h.id = hs.homework_id
+           WHERE hs.student_id = ? AND hs.status = 'done'""",
+        (student_id,),
+    ).fetchall():
+        day = row["due_date"] or _ts_day(row["submitted_at"])
+        if not _in_term(day, term):
+            continue
+        score += float(row["score"] or 0)
+        maximum += float(row["max_score"] or 0)
+        count += 1
+    return {
+        "score": _round1(score),
+        "max": _round1(maximum),
+        "count": count,
+        "percent": min(100.0, round(score / max(1.0, maximum) * 100, 1)) if maximum else 0.0,
+    }
+
+
+def _term_exam_stats(db: sqlite3.Connection, term_id: int, student_id: int,
+                     lesson_id: int | None = None) -> dict:
+    term_row = db.execute(
+        "SELECT start_date, end_date FROM academic_terms WHERE id = ?", (term_id,)
+    ).fetchone()
+    term = dict(term_row) if term_row else None
+    scores = []
+    for row in db.execute(
+        """SELECT s.total_score, q.lesson_id, COALESCE(qa.submitted_at, qa.started_at) AS attempt_at
+           FROM submissions s JOIN quizzes q ON q.id = s.quiz_id
+           LEFT JOIN quiz_attempts qa ON qa.quiz_id = s.quiz_id AND qa.student_id = s.student_id
+           WHERE s.student_id = ?""",
+        (student_id,),
+    ).fetchall():
+        if lesson_id and row["lesson_id"] != lesson_id:
+            continue
+        day = _ts_day(row["attempt_at"])
+        if not _in_term(day, term):
+            continue
+        scores.append(float(row["total_score"] or 0))
+    average = sum(scores) / len(scores) if scores else 0.0
+    return {
+        "count": len(scores),
+        "average": _round1(average),
+        "percent": min(100.0, round(average / 8.0 * 100, 1)),
+    }
+
+
+def _term_discipline_points(db: sqlite3.Connection, term_id: int, student_id: int) -> dict:
+    term = db.execute(
+        "SELECT start_date, end_date FROM academic_terms WHERE id = ?", (term_id,)
+    ).fetchone()
+    if not term:
+        return {"total": 0.0, "activity": 0.0, "penalty": 0.0, "count": 0}
+    rows = db.execute(
+        """SELECT score_delta FROM discipline_records
+           WHERE student_id = ? AND date >= ? AND date <= ?""",
+        (student_id, term["start_date"], term["end_date"]),
+    ).fetchall()
+    values = [float(r["score_delta"] or 0) for r in rows]
+    return {
+        "total": _round1(sum(values)),
+        "activity": _round1(sum(v for v in values if v > 0)),
+        "penalty": _round1(sum(v for v in values if v < 0)),
+        "count": len(values),
+    }
+
+
 def _term_grade_breakdown(db: sqlite3.Connection, term_id: int, student_id: int,
                           lesson_id: int, grade_id: int) -> dict:
     sessions = _session_ids(db, term_id, lesson_id, grade_id)
@@ -614,26 +723,31 @@ def _term_grade_breakdown(db: sqlite3.Connection, term_id: int, student_id: int,
     da_100 = min(100.0, round(float(da_score) / max(1, da_max) * 100, 1)) if da_max else 0.0
     da_ib = round(da_100 / 12.5, 1)
 
-    computed_100 = round(
+    homework = _term_homework_stats(db, term_id, student_id)
+    exams = _term_exam_stats(db, term_id, student_id, lesson_id if lesson_id else None)
+    discipline = _term_discipline_points(db, term_id, student_id)
+    discipline_points = discipline["total"]
+
+    base_100 = round(
         criteria_100 * TERM_WEIGHTS["criteria"]
         + attendance_100 * TERM_WEIGHTS["attendance"]
         + da_100 * TERM_WEIGHTS["data_analysis"]
+        + homework["percent"] * TERM_WEIGHTS["homework"]
+        + exams["percent"] * TERM_WEIGHTS["exams"]
         + float(conduct_points), 1,
     )
-    computed_100 = max(0.0, min(100.0, computed_100))
-    computed_ib = min(8.0, round(computed_100 / 12.5, 1))
+    base_ib = min(8.0, round(base_100 / 12.5, 1))
+    computed_100 = max(0.0, min(100.0, round(base_100 + discipline_points, 1)))
+    computed_ib = max(0.0, min(8.0, round(base_ib + discipline_points / 12.5, 1)))
 
     override = db.execute(
         "SELECT * FROM term_grade_overrides WHERE term_id = ? AND student_id = ? AND lesson_id = ?",
         (term_id, student_id, lesson_id),
     ).fetchone()
-    final_100 = computed_100
-    final_ib = computed_ib
-    if override and override["final_100"] is not None:
-        final_100 = _round1(override["final_100"])
-        final_ib = _round1(override["ib_score"]) if override["ib_score"] is not None else min(
-            8.0, round(final_100 / 12.5, 1)
-        )
+    override_base_100 = _round1(override["final_100"]) if override and override["final_100"] is not None else base_100
+    override_base_ib = _round1(override["ib_score"]) if override and override["ib_score"] is not None else base_ib
+    final_100 = max(0.0, min(100.0, round(override_base_100 + discipline_points, 1)))
+    final_ib = max(0.0, min(8.0, round(override_base_ib + discipline_points / 12.5, 1)))
 
     return {
         "sessions": session_count,
@@ -645,10 +759,25 @@ def _term_grade_breakdown(db: sqlite3.Connection, term_id: int, student_id: int,
         "criteria_ib": criteria_ib,
         "criteria_100": criteria_100,
         "conduct_points": _round1(conduct_points),
+        "discipline_points": discipline_points,
+        "discipline_activity": discipline["activity"],
+        "discipline_penalty": discipline["penalty"],
+        "discipline_count": discipline["count"],
         "da_score": _round1(da_score),
         "da_max": da_max,
         "da_100": da_100,
         "da_ib": da_ib,
+        "homework_score": homework["score"],
+        "homework_max": homework["max"],
+        "homework_count": homework["count"],
+        "homework_100": homework["percent"],
+        "exam_average": exams["average"],
+        "exam_count": exams["count"],
+        "exam_100": exams["percent"],
+        "base_100": base_100,
+        "base_ib": base_ib,
+        "override_base_100": override_base_100,
+        "override_base_ib": override_base_ib,
         "computed_100": computed_100,
         "computed_ib": computed_ib,
         "final_100": final_100,
@@ -656,6 +785,411 @@ def _term_grade_breakdown(db: sqlite3.Connection, term_id: int, student_id: int,
         "overridden": bool(override and override["final_100"] is not None),
         "override_note": (override["note"] if override else "") or "",
     }
+
+
+def _json_object(value) -> dict:
+    try:
+        parsed = json.loads(value or "{}")
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _ts_day(value) -> str:
+    try:
+        return datetime.fromtimestamp(int(value)).strftime("%Y-%m-%d")
+    except (TypeError, ValueError, OSError):
+        return ""
+
+
+def _in_term(day: str, term: dict | None) -> bool:
+    if not term:
+        return True
+    if not day:
+        return True
+    start = term.get("start_date") or "0000-01-01"
+    end = term.get("end_date") or "9999-12-31"
+    return start <= day <= end
+
+
+def _term_report(db: sqlite3.Connection, student_id: int, term_id: Optional[int] = None) -> dict | None:
+    student = db.execute(
+        "SELECT * FROM users WHERE id = ? AND role = 'student'", (student_id,)
+    ).fetchone()
+    if not student:
+        return None
+    student = dict(student)
+
+    terms = _all_terms(db)
+    term = next((t for t in terms if t["id"] == term_id), None)
+    if not term:
+        term = next((t for t in terms if t["is_active"]), terms[0] if terms else None)
+    term = dict(term) if term else {
+        "id": 0, "name": "Бүх хугацаа", "school_year": "", "start_date": "", "end_date": "",
+    }
+
+    grade_id = _grade_id_by_name(db, student.get("grade") or "")
+    lessons = []
+    for lesson in _visible_lessons_for_student(db, student.get("grade") or ""):
+        breakdown = _term_grade_breakdown(
+            db, term["id"], student_id, lesson["id"], grade_id or 0
+        )
+        lessons.append({
+            "id": lesson["id"], "title": lesson["title"] or "", "breakdown": breakdown,
+        })
+    if lessons:
+        overall_100 = _round1(sum(l["breakdown"]["final_100"] for l in lessons) / len(lessons))
+        overall_ib = _round1(sum(l["breakdown"]["final_ib"] for l in lessons) / len(lessons))
+    else:
+        overall_100, overall_ib = 0.0, 0.0
+
+    attendance_sessions = [dict(r) for r in db.execute(
+        """SELECT ls.date, ls.topic, l.title AS lesson_title, am.status, am.points, am.note
+           FROM attendance_marks am
+           JOIN lesson_sessions ls ON ls.id = am.session_id
+           LEFT JOIN lessons l ON l.id = ls.lesson_id
+           WHERE am.student_id = ? AND ls.term_id = ?
+           ORDER BY ls.date, ls.id""",
+        (student_id, term["id"]),
+    ).fetchall()]
+    daily_attendance = [dict(r) for r in db.execute(
+        """SELECT date, status, score, note FROM attendance_records
+           WHERE student_id = ? AND date >= ? AND date <= ?
+           ORDER BY date DESC""",
+        (student_id, term.get("start_date") or "0000-01-01", term.get("end_date") or "9999-12-31"),
+    ).fetchall()]
+    criteria = [dict(r) for r in db.execute(
+        """SELECT ls.date, l.title AS lesson_title, cs.criterion, cs.score, cs.note
+           FROM criteria_scores cs
+           JOIN lesson_sessions ls ON ls.id = cs.session_id
+           LEFT JOIN lessons l ON l.id = ls.lesson_id
+           WHERE cs.student_id = ? AND ls.term_id = ?
+           ORDER BY ls.date, cs.criterion""",
+        (student_id, term["id"]),
+    ).fetchall()]
+    conduct = [dict(r) for r in db.execute(
+        """SELECT ls.date, l.title AS lesson_title, lc.points, lc.note
+           FROM lesson_conduct_records lc
+           JOIN lesson_sessions ls ON ls.id = lc.session_id
+           LEFT JOIN lessons l ON l.id = ls.lesson_id
+           WHERE lc.student_id = ? AND ls.term_id = ? AND lc.points < 0
+           ORDER BY ls.date""",
+        (student_id, term["id"]),
+    ).fetchall()]
+
+    discipline_rows = [dict(r) for r in db.execute(
+        """SELECT date, note, score_delta, photo_path, source FROM discipline_records
+           WHERE student_id = ? AND date >= ? AND date <= ?
+           ORDER BY date DESC, id DESC""",
+        (student_id, term.get("start_date") or "0000-01-01", term.get("end_date") or "9999-12-31"),
+    ).fetchall()]
+    for row in discipline_rows:
+        row["photo_url"] = _photo_url(row["photo_path"])
+        row["photo_file"] = _photo_file(row["photo_path"])
+    activity = [r for r in discipline_rows if float(r["score_delta"] or 0) > 0]
+    discipline = [r for r in discipline_rows if float(r["score_delta"] or 0) < 0]
+
+    homework = []
+    for row in db.execute(
+        """SELECT h.title, h.due_date, hs.score, hs.max_score, hs.status, hs.explanation,
+                  hs.submitted_at, hs.checked_at
+           FROM homework_submissions hs
+           JOIN homework h ON h.id = hs.homework_id
+           WHERE hs.student_id = ? ORDER BY h.due_date, h.id""",
+        (student_id,),
+    ).fetchall():
+        item = dict(row)
+        item["day"] = item["due_date"] or _ts_day(item["submitted_at"])
+        if _in_term(item["day"], term):
+            homework.append(item)
+
+    exams = []
+    for row in db.execute(
+        """SELECT q.title AS quiz_title, l.title AS lesson_title, s.total_score,
+                  s.evaluation_json, COALESCE(qa.submitted_at, qa.started_at) AS attempt_at
+           FROM submissions s
+           JOIN quizzes q ON q.id = s.quiz_id
+           LEFT JOIN lessons l ON l.id = q.lesson_id
+           LEFT JOIN quiz_attempts qa ON qa.quiz_id = s.quiz_id AND qa.student_id = s.student_id
+           WHERE s.student_id = ? ORDER BY attempt_at DESC, s.id DESC""",
+        (student_id,),
+    ).fetchall():
+        item = dict(row)
+        evaluation = _json_object(item.pop("evaluation_json", None))
+        item["day"] = _ts_day(item["attempt_at"])
+        item["comment"] = str(evaluation.get("overall_summary") or "")
+        if _in_term(item["day"], term):
+            exams.append(item)
+
+    data_analysis = [dict(r) for r in db.execute(
+        """SELECT d.title, s.score, s.ib_score, s.feedback, s.status
+           FROM data_analysis_submissions s
+           JOIN data_analysis_assignments d ON d.id = s.assignment_id
+           WHERE s.student_id = ? AND d.term_id = ? ORDER BY d.title""",
+        (student_id, term["id"]),
+    ).fetchall()]
+
+    comments = []
+    for lesson in lessons:
+        if lesson["breakdown"]["override_note"]:
+            comments.append({"source": lesson["title"], "date": term["name"],
+                             "text": lesson["breakdown"]["override_note"]})
+    for row in criteria:
+        if row["note"]:
+            comments.append({"source": f"{row['lesson_title']} · Criterion {row['criterion']}",
+                             "date": row["date"] or "", "text": row["note"]})
+    for row in attendance_sessions + daily_attendance:
+        if row.get("note"):
+            comments.append({"source": row.get("lesson_title") or "Ирц",
+                             "date": row.get("date") or "", "text": row["note"]})
+    for row in conduct:
+        if row["note"]:
+            comments.append({"source": row["lesson_title"] or "Сахилга",
+                             "date": row["date"] or "", "text": row["note"]})
+    for row in discipline_rows:
+        if row["note"]:
+            comments.append({"source": "Сахилга / идэвх", "date": row["date"] or "",
+                             "text": row["note"]})
+    for row in homework:
+        if row["explanation"]:
+            comments.append({"source": row["title"] or "Гэрийн даалгавар",
+                             "date": row["day"] or "", "text": row["explanation"]})
+    for row in exams:
+        if row["comment"]:
+            comments.append({"source": row["quiz_title"] or "Шалгалт",
+                             "date": row["day"] or "", "text": row["comment"]})
+    for row in data_analysis:
+        if row["feedback"]:
+            comments.append({"source": row["title"] or "Data analysis", "date": "",
+                             "text": row["feedback"]})
+
+    summary = {
+        "present": sum(1 for r in attendance_sessions if r["status"] == "present"),
+        "late": sum(1 for r in attendance_sessions if r["status"] == "late"),
+        "absent": sum(1 for r in attendance_sessions if r["status"] == "absent"),
+        "attendance_points": _round1(sum(float(r["points"] or 0) for r in attendance_sessions)),
+        "activity_total": _round1(sum(float(r["score_delta"] or 0) for r in activity)),
+        "discipline_total": _round1(sum(float(r["score_delta"] or 0) for r in discipline)),
+        "homework_total": _round1(sum(float(r["score"] or 0) for r in homework)),
+        "exam_count": len(exams),
+        "exam_average": _round1(
+            sum(float(r["total_score"] or 0) for r in exams) / len(exams)
+        ) if exams else 0.0,
+    }
+
+    return {
+        "student": student,
+        "term": term,
+        "terms": terms,
+        "lessons": lessons,
+        "overall_100": overall_100,
+        "overall_ib": overall_ib,
+        "summary": summary,
+        "attendance_sessions": attendance_sessions,
+        "daily_attendance": daily_attendance,
+        "criteria": criteria,
+        "conduct": conduct,
+        "activity": activity,
+        "discipline": discipline,
+        "homework": homework,
+        "exams": exams,
+        "data_analysis": data_analysis,
+        "comments": comments,
+        "photo_url": _photo_url(student.get("photo_path")),
+    }
+
+
+def _report_pdf_fonts() -> tuple[str, str | None]:
+    candidates = (
+        (os.path.join(BASE_DIR, "fonts", "DejaVuSans.ttf"),
+         os.path.join(BASE_DIR, "fonts", "DejaVuSans-Bold.ttf")),
+        ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+         "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
+    )
+    for regular, bold in candidates:
+        if os.path.isfile(regular):
+            return regular, bold if bold and os.path.isfile(bold) else None
+    raise RuntimeError("PDF тайлангийн Unicode фонт олдсонгүй (arial.ttf эсвэл DejaVuSans.ttf).")
+
+
+def _report_pdf(report: dict) -> bytes:
+    from fpdf import FPDF
+
+    regular, bold = _report_pdf_fonts()
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_margins(15, 15, 15)
+    pdf.add_font("Report", "", regular)
+    if bold:
+        pdf.add_font("Report", "B", bold)
+    pdf.add_page()
+    pdf.set_font("Report", "B", 16)
+    pdf.cell(0, 9, "EduPath - Сурагчийн улирлын тайлан", ln=1)
+    pdf.set_font("Report", "", 10)
+    pdf.cell(0, 6, f"{report['term']['name']}  {report['term']['school_year']}", ln=1)
+    pdf.ln(2)
+
+    student = report["student"]
+    photo_file = _photo_file(student.get("photo_path"))
+    info_y = pdf.get_y()
+    if photo_file:
+        try:
+            pdf.image(photo_file, x=15, y=info_y, w=32)
+        except (RuntimeError, ValueError):
+            photo_file = None
+    text_x = 52 if photo_file else 15
+    lines = [
+        f"Нэр: {student.get('surname') or ''} {student.get('name') or student.get('username') or ''}".strip(),
+        f"Оюутны код: {student.get('student_code') or student.get('username') or '-'}",
+        f"Анги: {student.get('grade') or '-'}    Хүйс: {student.get('gender') or '-'}",
+        f"И-мэйл: {student.get('email') or '-'}    Утас: {student.get('phone') or '-'}",
+    ]
+    pdf.set_xy(text_x, info_y)
+    for line in lines:
+        pdf.set_x(text_x)
+        pdf.cell(135, 6, line, ln=1)
+    pdf.set_y(info_y + max(34, 6 * len(lines) + 2))
+
+    def heading(text: str):
+        if pdf.get_y() > 245:
+            pdf.add_page()
+        pdf.set_font("Report", "B", 12)
+        pdf.set_fill_color(113, 75, 103)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(0, 7, f" {text}", ln=1, fill=True)
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_font("Report", "", 9)
+        pdf.ln(1)
+
+    def table(headers: list[str], rows: list[list], widths: list[str | int]):
+        if not rows:
+            pdf.set_text_color(120, 120, 120)
+            pdf.cell(0, 5, "Бүртгэл байхгүй.", ln=1)
+            pdf.set_text_color(0, 0, 0)
+            pdf.ln(2)
+            return
+        widths_mm = [float(w) for w in widths]
+
+        def row(cells: list, is_header: bool = False):
+            if pdf.get_y() > 265:
+                pdf.add_page()
+            x, y = pdf.get_x(), pdf.get_y()
+            pdf.set_font("Report", "B" if is_header else "", 8 if is_header else 8)
+            pdf.set_fill_color(235, 230, 235) if is_header else None
+            height = 6.0
+            for value, width in zip(cells, widths_mm):
+                pdf.set_xy(x, y)
+                pdf.multi_cell(width, height, str(value if value not in (None, "") else "-"),
+                               border=1, fill=is_header, align="L")
+                height = max(height, pdf.get_y() - y)
+            pdf.set_xy(x, y + height)
+            pdf.set_font("Report", "", 9)
+
+        row(headers, True)
+        for values in rows:
+            row(values)
+
+    summary = report["summary"]
+    heading("Нийт дүн")
+    table(
+        ["Нийт 100", "Нийт IB", "Ирц", "Идэвх", "Сахилга", "Даалгавар", "Шалгалтын дундаж"],
+        [[report["overall_100"], report["overall_ib"],
+          f"{summary['present']}/{summary['present'] + summary['late'] + summary['absent']}",
+          f"+{summary['activity_total']}", summary["discipline_total"],
+          summary["homework_total"], summary["exam_average"]]],
+        [20, 16, 18, 18, 20, 24, 34],
+    )
+    pdf.ln(2)
+
+    heading("Хичээл тус бүрийн улирлын дүн")
+    lesson_rows = []
+    for item in report["lessons"]:
+        b = item["breakdown"]
+        lesson_rows.append([
+            item["title"], f"{b['attendance_points']}/{b['attendance_max']}",
+            f"{b['criteria_ib']}/8", f"{b['homework_100']}%", f"{b['exam_average']}/8",
+            f"{b['da_score']}/{b['da_max']}",
+            f"+{b['discipline_activity']} / {b['discipline_penalty']}",
+            b["final_100"], b["final_ib"], b["override_note"],
+        ])
+    table(["Хичээл", "Ирц", "A-D", "Даалгавар", "Шалгалт", "DA", "Идэвх/Хасалт",
+           "Эцсийн 100", "IB", "Коммент"],
+          lesson_rows, [30, 16, 12, 16, 14, 14, 16, 16, 10, 26])
+    pdf.ln(2)
+
+    heading("Хичээлийн ирц")
+    table(["Огноо", "Хичээл", "Сэдэв", "Ирц", "Оноо", "Тэмдэглэл"],
+          [[r["date"], r["lesson_title"], r["topic"], r["status"], r["points"], r["note"]]
+           for r in report["attendance_sessions"]],
+          [20, 34, 40, 16, 12, 48])
+    pdf.ln(2)
+
+    heading("Идэвх / нэмэлт оноо")
+    table(["Огноо", "Тайлбар", "Оноо"],
+          [[r["date"], r["note"], f"+{r['score_delta']}"] for r in report["activity"]],
+          [24, 126, 20])
+    pdf.ln(2)
+
+    heading("Сахилга бат (хасалт, баримттай)")
+    table(["Огноо", "Тайлбар", "Оноо", "Баримт зураг"],
+          [[r["date"], r["note"], r.get("score_delta", r.get("points", "")),
+            "тийм" if r.get("photo_file") else "-"]
+           for r in report["discipline"] + report["conduct"]],
+          [24, 106, 18, 22])
+    for row in report["discipline"]:
+        if not row["photo_file"]:
+            continue
+        if pdf.get_y() > 220:
+            pdf.add_page()
+        pdf.set_font("Report", "B", 9)
+        pdf.cell(0, 6, f"Баримт: {row['date']} - {row['note']}", ln=1)
+        pdf.set_font("Report", "", 9)
+        y = pdf.get_y()
+        try:
+            pdf.image(row["photo_file"], x=15, y=y, w=55)
+            pdf.set_y(y + 45)
+        except (RuntimeError, ValueError):
+            pass
+    pdf.ln(2)
+
+    heading("Гэрийн даалгавар")
+    table(["Огноо", "Даалгавар", "Оноо", "Багшийн коммент"],
+          [[r["day"], r["title"], f"{r['score']}/{r['max_score']}", r["explanation"]]
+           for r in report["homework"]],
+          [22, 48, 20, 80])
+    pdf.ln(2)
+
+    heading("Шалгалт (IB A-D)")
+    table(["Огноо", "Шалгалт", "Хичээл", "Оноо /8", "Коммент"],
+          [[r["day"], r["quiz_title"], r["lesson_title"], r["total_score"], r["comment"]]
+           for r in report["exams"]],
+          [20, 42, 36, 18, 54])
+    pdf.ln(2)
+
+    heading("A-D шалгуур (хичээлээр)")
+    table(["Огноо", "Хичээл", "Шалгуур", "Оноо", "Тэмдэглэл"],
+          [[r["date"], r["lesson_title"], r["criterion"], r["score"], r["note"]]
+           for r in report["criteria"]],
+          [22, 44, 20, 16, 68])
+    pdf.ln(2)
+
+    if report["data_analysis"]:
+        heading("Data analysis")
+        table(["Даалгавар", "Оноо", "IB", "Санал"],
+              [[r["title"], r["score"], r["ib_score"], r["feedback"]]
+               for r in report["data_analysis"]],
+              [40, 18, 14, 98])
+        pdf.ln(2)
+
+    heading("Багшийн комментууд")
+    table(["Эх сурвалж", "Огноо", "Коммент"],
+          [[r["source"], r["date"], r["text"]] for r in report["comments"]],
+          [48, 24, 98])
+
+    return bytes(pdf.output())
 
 
 def _generate_sessions(db: sqlite3.Connection, term_id: int, created_by: int) -> int:
@@ -1782,11 +2316,12 @@ async def teacher_discipline_save(
         )
     if not note:
         note = "Хичээлд идэвхтэй оролцсон" if delta > 0 else "Сахилгын зөрчил"
+    photo_path = _save_evidence_photo(form.get("evidence_photo"))
     c.execute(
         """INSERT INTO discipline_records
-           (student_id, grade, date, note, score_delta, source, created_by, created_at)
-           VALUES (?, ?, ?, ?, ?, 'manual', ?, ?)""",
-        (student_id, grade, selected_date, note, delta, user["id"], int(time.time())),
+           (student_id, grade, date, note, score_delta, photo_path, source, created_by, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'manual', ?, ?)""",
+        (student_id, grade, selected_date, note, delta, photo_path, user["id"], int(time.time())),
     )
     db.commit()
     return RedirectResponse(
@@ -3560,6 +4095,96 @@ def student_term_grades_page(request: Request, term_id: Optional[int] = None,
     )
 
 
+# --- СУРАГЧИЙН ТАЙЛАН (HTML / PDF) ---
+
+@app.get("/teacher/reports", response_class=HTMLResponse)
+def teacher_reports_page(
+    request: Request, grade: Optional[str] = None, term_id: Optional[int] = None,
+    user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        return RedirectResponse("/login")
+    grades = _grades_with_students(db)
+    terms = _all_terms(db)
+    selected_grade = grade or (grades[0] if grades else "")
+    selected_term = term_id or next(
+        (t["id"] for t in terms if t["is_active"]), terms[0]["id"] if terms else 0
+    )
+    rows = []
+    for student in _students_for_grade_name(db, selected_grade):
+        report = _term_report(db, student["id"], selected_term)
+        if report:
+            rows.append(report)
+    return templates.TemplateResponse(
+        request=request, name="teacher_reports.html",
+        context={
+            "user": user, "grades": grades, "terms": terms,
+            "selected_grade": selected_grade, "selected_term": selected_term, "rows": rows,
+        },
+    )
+
+
+@app.get("/teacher/reports/{student_id}", response_class=HTMLResponse)
+def teacher_report_page(
+    student_id: int, request: Request, term_id: Optional[int] = None,
+    user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        return RedirectResponse("/login")
+    report = _term_report(db, student_id, term_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Сурагч олдсонгүй")
+    return templates.TemplateResponse(
+        request=request, name="student_report.html",
+        context={"user": user, "report": report, "own": False},
+    )
+
+
+@app.get("/teacher/reports/{student_id}/pdf")
+def teacher_report_pdf(
+    student_id: int, term_id: Optional[int] = None,
+    user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    report = _term_report(db, student_id, term_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Сурагч олдсонгүй")
+    filename = re.sub(r"[^A-Za-z0-9_-]+", "_", report["student"].get("student_code") or str(student_id))
+    return Response(
+        content=_report_pdf(report), media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="report_{filename}.pdf"'},
+    )
+
+
+@app.get("/student/report", response_class=HTMLResponse)
+def student_report_page(
+    request: Request, term_id: Optional[int] = None,
+    user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "student":
+        return RedirectResponse("/login")
+    report = _term_report(db, user["id"], term_id)
+    return templates.TemplateResponse(
+        request=request, name="student_report.html",
+        context={"user": user, "report": report, "own": True},
+    )
+
+
+@app.get("/student/report/pdf")
+def student_report_pdf(
+    term_id: Optional[int] = None,
+    user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "student":
+        raise HTTPException(status_code=403)
+    report = _term_report(db, user["id"], term_id)
+    return Response(
+        content=_report_pdf(report), media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=\"my_report.pdf\""},
+    )
+
+
 # --- CSV EXPORT / IMPORT: SUragchid, dun ---
 
 CSV_HEADERS = {
@@ -3653,17 +4278,20 @@ def teacher_data_transfer_export(kind: str, user: dict = Depends(get_current_use
             rows.append([r["student_code"] or "", r["quiz_title"] or "", r["total_score"]])
     else:
         for r in db.execute(
-            """SELECT u.student_code, t.name as term_name, t.school_year, l.title as lesson_title,
-                      o.final_100, o.ib_score, o.note
+            """SELECT u.student_code, t.id as term_id, t.name as term_name, t.school_year,
+                      l.title as lesson_title, o.student_id, o.lesson_id, o.note
                FROM term_grade_overrides o
                JOIN users u ON u.id = o.student_id
                JOIN academic_terms t ON t.id = o.term_id
                JOIN lessons l ON l.id = o.lesson_id
                ORDER BY t.start_date, u.grade, u.surname"""
         ).fetchall():
+            breakdown = _term_grade_breakdown(
+                db, r["term_id"], r["student_id"], r["lesson_id"], 0
+            )
             rows.append([r["student_code"] or "", r["term_name"] or "", r["school_year"] or "",
-                         r["lesson_title"] or "", r["final_100"] if r["final_100"] is not None else "",
-                         r["ib_score"] if r["ib_score"] is not None else "", r["note"] or ""])
+                         r["lesson_title"] or "", breakdown["final_100"], breakdown["final_ib"],
+                         r["note"] or ""])
     return _csv_response(f"{kind}.csv", rows)
 
 

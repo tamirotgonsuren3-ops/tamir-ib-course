@@ -36,12 +36,14 @@
             <a href="/teacher/homework" class="hover:underline">Гэрийн даалгавар</a>
             <a href="/teacher/attendance" class="hover:underline">Ирц</a>
             <a href="/teacher/scoring" class="hover:underline">Оноо</a>
+            <a href="/teacher/reports" class="hover:underline">Тайлан</a>
             <a href="/scores" class="hover:underline">Дүн</a>
             <a href="/teacher/data-transfer" class="hover:underline">Өгөгдөл</a>
           {% else %}
             <a href="/student" class="hover:underline">Самбар</a>
             <a href="/student/data-analysis" class="hover:underline">Data analysis</a>
             <a href="/student/term-grades" class="hover:underline">Улирлын дүн</a>
+            <a href="/student/report" class="hover:underline">Миний тайлан</a>
           {% endif %}
           <span class="bg-white/20 px-3 py-1 rounded-lg">👤 {{ user.name or user.username }} ({{ user.role }})</span>
           <a href="/logout" class="bg-rose-500 hover:bg-rose-600 px-3 py-1 rounded-lg transition">Гарах</a>
