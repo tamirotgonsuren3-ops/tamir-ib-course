@@ -44,6 +44,19 @@
     {% endif %}
   </div>
 
+  {% if homework.google_form_url %}
+    <div class="bg-sky-50 p-5 rounded-2xl border border-sky-200 space-y-3">
+      <div>
+        <h2 class="font-bold text-sky-900">Google Form quiz</h2>
+        <p class="text-xs text-sky-800 mt-1">Энэ даалгаврыг Google Form-оор өгнө. Хариулсаны дараа багш формын үр дүнг системд бүртгэнэ.</p>
+      </div>
+      <a href="{{ homework.google_form_url }}" target="_blank" rel="noopener" class="inline-flex px-5 py-2 bg-sky-700 text-white text-sm font-bold rounded-xl hover:bg-sky-800">Google Form-д хариулах ↗</a>
+      {% if test_results.get('source') == 'google_forms' %}
+        <p class="text-xs font-semibold text-emerald-700">✓ Таны Google Form үр дүн системд бүртгэгдсэн.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+
   {% if submission and submission.status != 'checking' %}
     <div class="bg-white p-5 rounded-2xl border shadow-sm">
       <h2 class="font-bold text-slate-800 mb-4">Шалгалтын үр дүн</h2>

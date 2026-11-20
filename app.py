@@ -269,6 +269,7 @@ def init_db():
     _ensure_columns(c, "homework", {
         "check_type": "check_type TEXT DEFAULT 'tests'",
         "fixed_answer": "fixed_answer TEXT",
+        "google_form_url": "google_form_url TEXT",
     })
     c.execute("UPDATE homework SET check_type = 'tests' WHERE check_type IS NULL OR check_type = ''")
     c.execute('''CREATE TABLE IF NOT EXISTS homework_tests (
@@ -290,6 +291,16 @@ def init_db():
         submitted_at INTEGER,
         checked_at INTEGER,
         UNIQUE(homework_id, student_id)
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS google_form_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        homework_id INTEGER NOT NULL,
+        student_id INTEGER NOT NULL,
+        student_email TEXT,
+        score INTEGER,
+        max_score INTEGER,
+        source_row_json TEXT,
+        imported_at INTEGER
     )''')
     # Ирц, сахилга бат, урамшуулал
     c.execute('''CREATE TABLE IF NOT EXISTS attendance_config (
@@ -1829,6 +1840,17 @@ def _grade_in_background(submission_id: int):
         conn.close()
 
 
+def _clean_google_form_url(value) -> Optional[str]:
+    url = str(value or "").strip()
+    if not url:
+        return None
+    if re.match(r"^docs\.google\.com/", url, re.IGNORECASE):
+        url = "https://" + url
+    if not re.match(r"^https?://", url, re.IGNORECASE):
+        return None
+    return url
+
+
 def _parse_homework_form(form) -> tuple[Optional[dict], Optional[str]]:
     title = str(form.get("title") or "").strip()
     if not title:
@@ -1859,6 +1881,7 @@ def _parse_homework_form(form) -> tuple[Optional[dict], Optional[str]]:
         "check_mode": check_mode,
         "check_type": check_type,
         "fixed_answer": fixed_answer,
+        "google_form_url": _clean_google_form_url(form.get("google_form_url")),
     }, None
 
 
@@ -1876,6 +1899,197 @@ def _save_homework_tests(c: sqlite3.Cursor, homework_id: int, form) -> None:
             "INSERT INTO homework_tests (homework_id, name, test_code) VALUES (?, ?, ?)",
             (homework_id, test_name, test_code),
         )
+
+
+def _decode_uploaded_csv(raw: bytes) -> str:
+    for encoding in ("utf-8-sig", "utf-8", "cp1252"):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+def _form_key(value) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def _form_column(headers, keywords) -> Optional[str]:
+    for header in headers:
+        lowered = _form_key(header)
+        if any(keyword in lowered for keyword in keywords):
+            return header
+    return None
+
+
+def _form_score(value, max_score: int) -> Optional[int]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    fraction = re.search(r"(-?\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)", text)
+    if fraction:
+        try:
+            raw = float(fraction.group(1))
+            denominator = float(fraction.group(2))
+            if denominator > 0:
+                return int(round(min(max_score, max(0, raw / denominator * max_score))))
+        except (TypeError, ValueError, ZeroDivisionError):
+            pass
+    percent = re.search(r"(-?\d+(?:\.\d+)?)\s*%", text)
+    if percent:
+        return int(round(min(max_score, max(0, float(percent.group(1)) / 100 * max_score))))
+    number = re.search(r"-?\d+(?:\.\d+)?", text)
+    if number:
+        return int(round(min(max_score, max(0, float(number.group(0))))))
+    return None
+
+
+def _form_answers_score(row, answer_columns, max_score: int) -> Optional[int]:
+    correct = 0
+    total = 0
+    positive = {"correct", "зөв", "true", "1", "yes", "тийм"}
+    negative = {"incorrect", "буруу", "false", "0", "no", "үгүй"}
+    for header in answer_columns:
+        value = _form_key(row.get(header))
+        if value in positive:
+            correct += 1
+            total += 1
+        elif value in negative:
+            total += 1
+    if not total:
+        return None
+    return int(round(correct / total * max_score))
+
+
+def _form_timestamp(value) -> int:
+    text = str(value or "").strip()
+    if not text:
+        return int(time.time())
+    for pattern in (
+        "%m/%d/%Y %H:%M:%S",
+        "%m/%d/%Y %H:%M",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%d.%m.%Y %H:%M:%S",
+        "%d.%m.%Y %H:%M",
+    ):
+        try:
+            return int(datetime.strptime(text, pattern).timestamp())
+        except ValueError:
+            continue
+    return int(time.time())
+
+
+def _import_google_form_rows(db: sqlite3.Connection, homework, rows: list[dict]) -> tuple[int, list[str], int]:
+    headers = [header for header in (rows[0].keys() if rows else []) if header]
+    email_col = _form_column(headers, ("email", "e-mail", "имэйл", "mail"))
+    code_col = _form_column(headers, ("student code", "student_code", "student id", "student_id", "сурагчийн код", "код"))
+    username_col = _form_column(headers, ("username", "нэвтрэх нэр"))
+    name_col = _form_column(headers, ("student name", "full name", "нэр", "name"))
+    score_col = _form_column(headers, ("score", "он", "дүн", "point", "result"))
+    timestamp_col = _form_column(headers, ("timestamp", "огноо", "цаг", "date", "time"))
+
+    identity_cols = {email_col, code_col, username_col, name_col, score_col, timestamp_col}
+    answer_columns = [header for header in headers if header not in identity_cols]
+
+    students = db.execute(
+        "SELECT id, email, student_code, username, name, surname FROM users WHERE role = 'student'"
+    ).fetchall()
+    by_email = {}
+    by_code = {}
+    by_username = {}
+    by_full_name = {}
+    for student in students:
+        if student["email"]:
+            by_email.setdefault(_form_key(student["email"]), student["id"])
+        if student["student_code"]:
+            by_code.setdefault(_form_key(student["student_code"]), student["id"])
+        if student["username"]:
+            by_username.setdefault(_form_key(student["username"]), student["id"])
+        full_name = _form_key(f"{student['surname'] or ''} {student['name'] or ''}")
+        if full_name.strip():
+            by_full_name.setdefault(full_name, []).append(student["id"])
+
+    max_score = int(homework["max_score"] or DEFAULT_MAX_SCORE)
+    imported = 0
+    unmatched = []
+    no_score = 0
+    now = int(time.time())
+
+    for row in rows:
+        student_id = None
+        matched_email = str(row.get(email_col) or "").strip() if email_col else ""
+        email = _form_key(matched_email)
+        code = _form_key(row.get(code_col)) if code_col else ""
+        username = _form_key(row.get(username_col)) if username_col else ""
+        name = _form_key(row.get(name_col)) if name_col else ""
+        for lookup, key in ((by_email, email), (by_code, code), (by_username, username)):
+            if key and key in lookup:
+                student_id = lookup[key]
+                break
+        if not student_id and name and name in by_full_name and len(by_full_name[name]) == 1:
+            student_id = by_full_name[name][0]
+        if not student_id:
+            unmatched.append(str(row.get(name_col) or row.get(email_col) or "?").strip() or "?")
+            continue
+
+        score = _form_score(row.get(score_col), max_score) if score_col else None
+        if score is None:
+            score = _form_answers_score(row, answer_columns, max_score)
+        if score is None:
+            no_score += 1
+            continue
+
+        answers = [
+            {"question": header, "answer": str(row.get(header) or "").strip()}
+            for header in answer_columns
+            if str(row.get(header) or "").strip()
+        ]
+        details = {
+            "source": "google_forms",
+            "answers": answers,
+            "matched_email": matched_email,
+            "imported_at": now,
+        }
+        explanation = "Google Forms-оос импортолсон оноо."
+        if score_col and str(row.get(score_col) or "").strip():
+            explanation += f" Формын оноо: {str(row.get(score_col)).strip()}."
+        submitted_at = _form_timestamp(row.get(timestamp_col)) if timestamp_col else now
+        code_text = "\n".join(f"{item['question']}: {item['answer']}" for item in answers) or "Google Forms"
+
+        existing = db.execute(
+            "SELECT id FROM homework_submissions WHERE homework_id = ? AND student_id = ?",
+            (homework["id"], student_id),
+        ).fetchone()
+        if existing:
+            db.execute(
+                """UPDATE homework_submissions
+                   SET code = ?, status = 'done', score = ?, max_score = ?, explanation = ?,
+                       test_results_json = ?, submitted_at = ?, checked_at = ?
+                   WHERE id = ?""",
+                (code_text, score, max_score, explanation, json.dumps(details), submitted_at, now, existing["id"]),
+            )
+        else:
+            db.execute(
+                """INSERT INTO homework_submissions
+                   (homework_id, student_id, code, status, score, max_score, explanation, test_results_json, submitted_at, checked_at)
+                   VALUES (?, ?, ?, 'done', ?, ?, ?, ?, ?, ?)""",
+                (homework["id"], student_id, code_text, score, max_score, explanation,
+                 json.dumps(details), submitted_at, now),
+            )
+        db.execute(
+            "DELETE FROM google_form_results WHERE homework_id = ? AND student_id = ?",
+            (homework["id"], student_id),
+        )
+        db.execute(
+            """INSERT INTO google_form_results
+               (homework_id, student_id, student_email, score, max_score, source_row_json, imported_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (homework["id"], student_id, matched_email, score, max_score,
+             json.dumps(row, ensure_ascii=False), now),
+        )
+        imported += 1
+    return imported, unmatched, no_score
 
 
 # --- TEACHER HOMEWORK ---
@@ -1939,8 +2153,8 @@ async def teacher_homework_create(
     c.execute(
         """INSERT INTO homework
            (title, description, starter_code, max_score, due_date, grade, check_mode, check_type, fixed_answer,
-            created_by, created_at, is_active)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+             google_form_url, created_by, created_at, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
         (
             data["title"],
             data["description"],
@@ -1951,9 +2165,11 @@ async def teacher_homework_create(
             data["check_mode"],
             data["check_type"],
             data["fixed_answer"],
+            data["google_form_url"],
             user["id"],
             int(time.time()),
         ),
+
     )
     homework_id = c.lastrowid
     if data["check_type"] == "tests":
@@ -2008,7 +2224,59 @@ def teacher_homework_detail(
             "students": students,
             "submissions": submissions,
             "sub_map": sub_map,
+            "gf_imported": request.query_params.get("gf_imported"),
+            "gf_unmatched": request.query_params.get("gf_unmatched"),
+            "gf_noscore": request.query_params.get("gf_noscore"),
+            "gf_error": request.query_params.get("gf_error"),
         },
+    )
+
+
+@app.post("/teacher/homework/{homework_id}/google-forms/import")
+async def teacher_homework_import_google_forms(
+    homework_id: int,
+    request: Request,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not user or user["role"] != "teacher":
+        raise HTTPException(status_code=403)
+    homework = _get_homework(db, homework_id)
+    if not homework or homework["created_by"] != user["id"]:
+        raise HTTPException(status_code=404)
+
+    form = await request.form()
+    raw = b""
+    csv_file = form.get("csv_file")
+    if csv_file and getattr(csv_file, "filename", None):
+        raw = await csv_file.read()
+    text = _decode_uploaded_csv(raw) if raw else str(form.get("csv_text") or "")
+    if not text.strip():
+        return RedirectResponse(
+            f"/teacher/homework/{homework_id}?gf_error=no_data",
+            status_code=status.HTTP_302_FOUND,
+        )
+    try:
+        rows = [
+            {key: value for key, value in row.items() if key}
+            for row in csv.DictReader(io.StringIO(text))
+        ]
+    except Exception:
+        return RedirectResponse(
+            f"/teacher/homework/{homework_id}?gf_error=bad_csv",
+            status_code=status.HTTP_302_FOUND,
+        )
+    if not rows:
+        return RedirectResponse(
+            f"/teacher/homework/{homework_id}?gf_error=no_rows",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    imported, unmatched, no_score = _import_google_form_rows(db, homework, rows)
+    db.commit()
+    return RedirectResponse(
+        f"/teacher/homework/{homework_id}?gf_imported={imported}&gf_unmatched={len(unmatched)}&gf_noscore={no_score}",
+        status_code=status.HTTP_302_FOUND,
     )
 
 
@@ -2058,7 +2326,7 @@ async def teacher_homework_update(
     c.execute(
         """UPDATE homework
            SET title = ?, description = ?, starter_code = ?, max_score = ?, due_date = ?, grade = ?,
-               check_mode = ?, check_type = ?, fixed_answer = ?
+               check_mode = ?, check_type = ?, fixed_answer = ?, google_form_url = ?
            WHERE id = ?""",
         (
             data["title"],
@@ -2070,6 +2338,7 @@ async def teacher_homework_update(
             data["check_mode"],
             data["check_type"],
             data["fixed_answer"],
+            data["google_form_url"],
             homework_id,
         ),
     )

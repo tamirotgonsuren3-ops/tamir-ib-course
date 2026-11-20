@@ -88,6 +88,7 @@
             <span class="text-xs text-slate-500">
               Дээд оноо {{ h.max_score }}{% if h.due_date %} · Хугацаа {{ h.due_date.replace('T', ' ') }}{% endif %}
               · {% if h.check_type == 'fixed' %}Тогтмол хариулт{% else %}Тест код{% endif %}
+              {% if h.google_form_url %} · <span class="text-sky-700 font-semibold">Google Form</span>{% endif %}
             </span>
             <div class="mt-1 text-xs">
               {% if h.sub_status == 'done' %}

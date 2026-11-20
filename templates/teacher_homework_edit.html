@@ -56,6 +56,11 @@
         <input type="text" name="fixed_answer" id="fixedAnswer" value="{{ homework.fixed_answer or '' }}" placeholder="Жишээ: 14" class="w-full px-3 py-2 border rounded-xl text-sm">
         <p class="text-xs text-slate-500 mt-1">Сурагчийн оруулсан хариулт энэ утгатай тэнцэж байвал бүтэн оноо өгнө.</p>
       </div>
+      <div class="md:col-span-2">
+        <label class="block text-sm font-semibold mb-1">Google Form quiz холбоос (заавал биш)</label>
+        <input type="url" name="google_form_url" value="{{ homework.google_form_url or '' }}" placeholder="https://docs.google.com/forms/d/.../viewform" class="w-full px-3 py-2 border rounded-xl text-sm">
+        <p class="text-xs text-slate-500 mt-1">Холбоос хадгалагдсаны дараа сурагчид даалгаврын хуудсаас нээж хариулах боломжтой.</p>
+      </div>
     </div>
 
     <div>

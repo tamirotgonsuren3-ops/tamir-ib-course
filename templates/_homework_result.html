@@ -64,8 +64,31 @@
     </div>
   {% endif %}
 
+  {% if test_results and test_results.get('source') == 'google_forms' %}
+    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4">
+      <div class="text-xs font-bold text-sky-900 mb-2">Google Forms үр дүн</div>
+      {% if test_results.get('matched_email') %}
+        <p class="text-xs text-sky-800 mb-3">Тааруулсан email: <span class="font-semibold">{{ test_results.matched_email }}</span></p>
+      {% endif %}
+      {% if test_results.get('answers') %}
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead class="text-left text-sky-800"><tr><th class="py-1 pr-3">Асуулт</th><th class="py-1">Хариулт</th></tr></thead>
+            <tbody class="divide-y divide-sky-100">
+              {% for item in test_results.get('answers') %}
+                <tr><td class="py-1.5 pr-3 font-semibold align-top">{{ item.question }}</td><td class="py-1.5 align-top whitespace-pre-line">{{ item.answer }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-xs text-sky-800">Нарийвчилсан хариулт байхгүй, зөвхөн оноо бүртгэгдсэн.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+
   <div class="rounded-xl border bg-slate-900 p-4 overflow-x-auto">
-    <div class="text-xs font-bold text-slate-300 mb-2">{% if homework.check_type == 'fixed' %}Илгээсэн хариулт{% else %}Илгээсэн код{% endif %}</div>
+    <div class="text-xs font-bold text-slate-300 mb-2">{% if test_results and test_results.get('source') == 'google_forms' %}Google Forms хариултууд{% elif homework.check_type == 'fixed' %}Илгээсэн хариулт{% else %}Илгээсэн код{% endif %}</div>
     <pre class="text-xs text-slate-100 whitespace-pre-wrap font-mono">{{ submission.code }}</pre>
   </div>
 </div>

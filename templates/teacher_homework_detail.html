@@ -24,6 +24,18 @@
     <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm">Өөрчлөлт амжилттай хадгалагдлаа.</div>
   {% endif %}
 
+  {% if gf_imported is not none %}
+    <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm">
+      ✓ Google Forms-оос {{ gf_imported }} сурагчийн үр дүн импортлогдлоо.
+      {% if gf_unmatched and gf_unmatched|int > 0 %}{{ gf_unmatched }} мөр таарагдсангүй.{% endif %}
+      {% if gf_noscore and gf_noscore|int > 0 %}{{ gf_noscore }} мөрөнд оноо олдсонгүй.{% endif %}
+    </div>
+  {% elif gf_error %}
+    <div class="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-sm">
+      {% if gf_error == 'no_data' %}CSV файл эсвэл текст оруулна уу.{% elif gf_error == 'no_rows' %}CSV-д өгөгдлийн мөр олдсонгүй.{% else %}CSV уншиж чадсангүй.{% endif %}
+    </div>
+  {% endif %}
+
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <div class="bg-white p-5 rounded-2xl border shadow-sm">
       <h2 class="font-bold text-slate-800 mb-2">Тайлбар</h2>
@@ -52,6 +64,34 @@
         {% endfor %}
       {% endif %}
     </div>
+  </div>
+
+  <div class="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
+    <div class="flex flex-wrap justify-between items-start gap-3">
+      <div>
+        <h2 class="font-bold text-slate-800">Google Form quiz</h2>
+        <p class="text-xs text-slate-500 mt-1">Формын хариултыг Google Sheet →(File → Download → CSV) экспортолж энд оруулна. Email, сурагчийн код эсвэл нэрээр автоматаар тааруулна.</p>
+      </div>
+      {% if homework.google_form_url %}
+        <a href="{{ homework.google_form_url }}" target="_blank" rel="noopener" class="px-4 py-2 bg-sky-600 text-white text-sm font-semibold rounded-xl hover:bg-sky-700">Формыг нээх ↗</a>
+      {% else %}
+        <a href="/teacher/homework/{{ homework.id }}/edit" class="px-4 py-2 border text-sm font-semibold rounded-xl hover:bg-slate-50">Холбоос нэмэх</a>
+      {% endif %}
+    </div>
+    <form action="/teacher/homework/{{ homework.id }}/google-forms/import" method="POST" enctype="multipart/form-data" class="grid md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">CSV файл</label>
+        <input type="file" name="csv_file" accept=".csv,text/csv" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-sky-50 file:text-sky-700">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">эсвэл CSV текстийг хуулж наа</label>
+        <textarea name="csv_text" rows="2" placeholder="Email Address,Score,Question 1..." class="w-full px-3 py-2 border rounded-xl text-xs font-mono"></textarea>
+      </div>
+      <div class="md:col-span-2">
+        <button type="submit" class="px-5 py-2 bg-sky-700 text-white text-sm font-bold rounded-xl hover:bg-sky-800">Үр дүнг импортлох</button>
+        <span class="text-xs text-slate-500 ml-2">Импортолсон оноо тухайн сурагчийн гэрийн даалгаврын оноог шинэчилнэ.</span>
+      </div>
+    </form>
   </div>
 
   <div class="bg-white rounded-2xl border shadow-sm overflow-x-auto">
